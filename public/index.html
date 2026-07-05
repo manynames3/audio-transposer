@@ -8,7 +8,7 @@
       content="Upload authorized audio, transpose it by semitone, and export tempo-preserved WAV versions in the browser."
     />
     <title>Audio Transposer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-0205" />
+    <link rel="stylesheet" href="./styles.css?v=20260705-0915" />
   </head>
   <body>
     <div class="app-shell">
@@ -223,7 +223,7 @@
                 </button>
                 <button class="rewind" type="button" disabled>10</button>
                 <button class="rewind" type="button" disabled>10</button>
-                <span>01:28.450</span>
+                <span id="ab-original-time">--</span>
                 <progress id="progress" value="0" max="100"></progress>
               </div>
             </div>
@@ -245,7 +245,7 @@
                 </button>
                 <button class="rewind" type="button" disabled>10</button>
                 <button class="rewind" type="button" disabled>10</button>
-                <span>01:28.450</span>
+                <span id="ab-transposed-time">--</span>
                 <span class="ab-volume" aria-hidden="true"><span></span></span>
               </div>
             </div>
@@ -463,6 +463,6 @@
       <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
     </div>
 
-    <script src="./app.js?v=20260705-0205" type="module"></script>
+    <script src="./app.js?v=20260705-0915" type="module"></script>
   </body>
 </html>

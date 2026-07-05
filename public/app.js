@@ -45,6 +45,8 @@ const els = {
   stopPreview: document.querySelector("#stop-preview"),
   progress: document.querySelector("#progress"),
   playheadTime: document.querySelector("#playhead-time"),
+  abOriginalTime: document.querySelector("#ab-original-time"),
+  abTransposedTime: document.querySelector("#ab-transposed-time"),
   stepDown: document.querySelector("#step-down"),
   stepUp: document.querySelector("#step-up"),
   trimStart: document.querySelector("#trim-start"),
@@ -116,6 +118,15 @@ function formatPreciseTime(seconds) {
   if (!Number.isFinite(seconds)) return "--";
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
   return formatDuration(seconds);
+}
+
+function formatPreviewTimestamp(seconds) {
+  if (!Number.isFinite(seconds)) return "--";
+  const totalMs = Math.max(0, Math.round(seconds * 1000));
+  const mins = Math.floor(totalMs / 60000);
+  const secs = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000;
+  return `${mins}:${String(secs).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
 
 function formatBytes(bytes) {
@@ -296,6 +307,7 @@ function updateMeta() {
     els.metaBpm.textContent = "BPM --";
     els.metaSize.textContent = "--";
     if (els.transportDuration) els.transportDuration.textContent = "--";
+    updatePreviewTimes();
     return;
   }
 
@@ -305,6 +317,13 @@ function updateMeta() {
   els.metaBpm.textContent = formatBpm();
   els.metaSize.textContent = formatBytes(state.sourceSize);
   if (els.transportDuration) els.transportDuration.textContent = formatDuration(state.audioBuffer.duration);
+}
+
+function updatePreviewTimes(seconds = 0) {
+  if (!els.abOriginalTime || !els.abTransposedTime) return;
+  const text = state.audioBuffer ? formatPreviewTimestamp(seconds) : "--";
+  els.abOriginalTime.textContent = text;
+  els.abTransposedTime.textContent = text;
 }
 
 async function buildOnsetEnvelope(buffer) {
@@ -695,6 +714,7 @@ async function decodeBlob(blob, name, sourceUrl = "") {
   renderExportList();
   drawWaveform();
   updateControls();
+  updatePreviewTimes(0);
   analyzeBpm(decoded, bpmAnalysisId);
 
   const lengthNote =
@@ -768,6 +788,7 @@ function stopPreview() {
   cancelAnimationFrame(state.animationFrame);
   els.progress.value = 0;
   els.playheadTime.textContent = "0:00";
+  updatePreviewTimes(0);
   updateControls();
   drawWaveform();
 }
@@ -830,6 +851,7 @@ function tickProgress() {
   const playhead = state.previewRegionStart + visibleElapsed;
   els.progress.value = state.previewDuration > 0 ? Math.min(100, (visibleElapsed / state.previewDuration) * 100) : 0;
   els.playheadTime.textContent = formatDuration(playhead);
+  updatePreviewTimes(playhead);
   drawWaveform(playhead);
   state.animationFrame = requestAnimationFrame(tickProgress);
 }
@@ -1250,6 +1272,7 @@ function init() {
   attachEvents();
   updateSemitone(0, false);
   updateMeta();
+  updatePreviewTimes();
   updateRegionLabels();
   updateEstimate();
   drawWaveform();
