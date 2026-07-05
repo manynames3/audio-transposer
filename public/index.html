@@ -7,8 +7,13 @@
       name="description"
       content="Upload authorized audio, transpose it by semitone, and export tempo-preserved WAV versions in the browser."
     />
+    <meta name="theme-color" content="#087f7c" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Audio Transposer" />
     <title>Audio Transposer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-0915" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=20260705-1600" />
   </head>
   <body>
     <div class="app-shell">
@@ -92,7 +97,7 @@
                 <strong id="loaded-file-title">
                   <span id="meta-name">Song Title - Artist Name</span>
                 </strong>
-                <span class="check-dot" aria-hidden="true">
+                <span class="check-dot" id="source-ready" aria-hidden="true" hidden>
                   <svg viewBox="0 0 24 24">
                     <path d="m7 12 3 3 7-7" />
                   </svg>
@@ -103,35 +108,17 @@
                 <b>•</b>
                 <span id="meta-rate">44.1 kHz</span>
                 <b>•</b>
-                <span>Stereo</span>
+                <span id="meta-channels">--</span>
                 <b>•</b>
                 <span id="meta-bpm">BPM --</span>
                 <span id="meta-size">70.2 MB</span>
-                <button class="icon-menu" type="button" aria-label="More file actions">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5h.01M12 12h.01M12 19h.01" />
-                  </svg>
-                </button>
               </div>
             </header>
 
-            <div class="wave-time-axis" aria-hidden="true">
-              <span>0:00</span>
-              <span>0:30</span>
-              <span>1:00</span>
-              <span>1:30</span>
-              <span>2:00</span>
-              <span>2:30</span>
-              <span>3:00</span>
-              <span>3:30</span>
-              <span>4:00</span>
-              <span>4:30</span>
-            </div>
+            <div class="wave-time-axis" id="wave-time-axis" aria-hidden="true"></div>
 
             <div class="waveform-wrap">
               <canvas id="waveform" width="1400" height="260" aria-label="Audio waveform with trim, loop, and playhead"></canvas>
-              <div class="trim-edge trim-left" aria-hidden="true"></div>
-              <div class="trim-edge trim-right" aria-hidden="true"></div>
               <div class="empty-waveform" id="empty-waveform">
                 <svg viewBox="0 0 80 64" aria-hidden="true">
                   <path d="M24 48H18a14 14 0 0 1-1.5-27.9A20 20 0 0 1 55 18a16 16 0 0 1 3 31h-6" />
@@ -145,24 +132,35 @@
 
             <footer class="wave-transport">
               <div class="transport-left">
-                <button class="play-main" id="preview-original" type="button" disabled aria-label="Preview original">
+                <button class="icon-soft" id="skip-back" type="button" aria-label="Back 10 seconds" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 6v12l-8-6 8-6Z" />
+                    <path d="M12 6v12l-8-6 8-6Z" />
+                  </svg>
+                </button>
+                <button class="play-main" id="preview-original" type="button" data-play-mode="original" disabled aria-label="Play original">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 5v14l11-7-11-7Z" />
                   </svg>
                 </button>
-                <button class="icon-soft" type="button" aria-label="Skip forward" disabled>
+                <button class="icon-soft" id="stop-preview" type="button" aria-label="Stop preview" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 8h8v8H8z" />
+                  </svg>
+                </button>
+                <button class="icon-soft" id="skip-forward" type="button" aria-label="Forward 10 seconds" disabled>
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="m4 6 8 6-8 6V6Z" />
                     <path d="m12 6 8 6-8 6V6Z" />
                   </svg>
                 </button>
-                <button class="icon-soft" type="button" aria-label="Volume" disabled>
+                <label class="volume-control" aria-label="Preview volume">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M11 5 6 9H3v6h3l5 4V5Z" />
                     <path d="M15.5 8.5a5 5 0 0 1 0 7" />
                   </svg>
-                </button>
-                <span class="volume-track" aria-hidden="true"><span></span></span>
+                  <input id="volume" type="range" min="0" max="1" step="0.01" value="0.72" />
+                </label>
               </div>
               <div class="transport-time">
                 <strong id="playhead-time">0:00</strong>
@@ -170,19 +168,19 @@
                 <span id="transport-duration">04:23.000</span>
               </div>
               <div class="transport-right">
-                <button class="icon-soft" type="button" aria-label="Zoom out" disabled>
+                <button class="icon-soft" id="zoom-out" type="button" aria-label="Zoom out" disabled>
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <circle cx="11" cy="11" r="7" />
                     <path d="m20 20-3.2-3.2M8 11h6" />
                   </svg>
                 </button>
-                <button class="icon-soft" type="button" aria-label="Zoom in" disabled>
+                <button class="icon-soft" id="zoom-in" type="button" aria-label="Zoom in" disabled>
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <circle cx="11" cy="11" r="7" />
                     <path d="m20 20-3.2-3.2M8 11h6M11 8v6" />
                   </svg>
                 </button>
-                <button class="button small" type="button" disabled>Fit</button>
+                <button class="button small" id="zoom-fit" type="button" disabled>Fit</button>
               </div>
             </footer>
           </section>
@@ -200,13 +198,6 @@
               </svg>
               <span>Transpose &amp; Export</span>
             </a>
-            <a href="#settings-panel">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
-                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5.9Z" />
-              </svg>
-              <span>Settings</span>
-            </a>
           </nav>
 
           <section class="ab-panel" id="ab-panel" aria-label="A/B Preview controls">
@@ -216,18 +207,18 @@
                 <span>A</span>
               </header>
               <div class="ab-controls">
-                <button class="ab-play" type="button" data-proxy="preview-original">
+                <button class="ab-play" type="button" data-play-mode="original" disabled aria-label="Play original preview">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 5v14l11-7-11-7Z" />
                   </svg>
                 </button>
-                <button class="rewind" type="button" disabled>10</button>
-                <button class="rewind" type="button" disabled>10</button>
+                <button class="rewind" type="button" data-skip="-10" disabled aria-label="Back 10 seconds">-10</button>
+                <button class="rewind" type="button" data-skip="10" disabled aria-label="Forward 10 seconds">+10</button>
                 <span id="ab-original-time">--</span>
-                <progress id="progress" value="0" max="100"></progress>
+                <progress id="original-progress" value="0" max="100"></progress>
               </div>
             </div>
-            <button class="swap-button" type="button" aria-label="Swap comparison" disabled>
+            <button class="swap-button" id="swap-preview" type="button" aria-label="Switch A/B preview" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3 3m-3-3 3-3" />
               </svg>
@@ -238,18 +229,17 @@
                 <span>B</span>
               </header>
               <div class="ab-controls">
-                <button class="ab-play" id="preview-transposed" type="button" disabled>
+                <button class="ab-play" id="preview-transposed" type="button" data-play-mode="transposed" disabled aria-label="Play transposed preview">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 5v14l11-7-11-7Z" />
                   </svg>
                 </button>
-                <button class="rewind" type="button" disabled>10</button>
-                <button class="rewind" type="button" disabled>10</button>
+                <button class="rewind" type="button" data-skip="-10" disabled aria-label="Back 10 seconds">-10</button>
+                <button class="rewind" type="button" data-skip="10" disabled aria-label="Forward 10 seconds">+10</button>
                 <span id="ab-transposed-time">--</span>
-                <span class="ab-volume" aria-hidden="true"><span></span></span>
+                <progress id="transposed-progress" value="0" max="100"></progress>
               </div>
             </div>
-            <button class="hidden-stop" id="stop-preview" type="button" disabled>Stop</button>
           </section>
 
           <section class="transpose-panel" id="transpose-panel" aria-label="Transpose controls">
@@ -368,7 +358,7 @@
             <dl>
               <div>
                 <dt>Format</dt>
-                <dd><button class="select-like" type="button" disabled>WAV (lossless)</button></dd>
+                <dd><span class="format-pill">WAV (lossless)</span></dd>
               </div>
               <div>
                 <dt>Selected</dt>
@@ -451,7 +441,7 @@
           </section>
 
           <footer class="rail-footer">
-            <span>Pro features &amp; licensing coming soon.</span>
+            <span>Local processing. No account required.</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
             </svg>
@@ -463,6 +453,6 @@
       <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
     </div>
 
-    <script src="./app.js?v=20260705-0915" type="module"></script>
+    <script src="./app.js?v=20260705-1600" type="module"></script>
   </body>
 </html>

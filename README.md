@@ -10,11 +10,13 @@ Live app: https://audio-transposer.pages.dev
 - Paste a direct audio/video file link, with a Cloudflare Pages Function fallback for links blocked by browser CORS.
 - Estimate BPM after decoding supported audio, including MP3 files.
 - Preview original vs transposed audio.
+- Seek, skip by 10 seconds, switch A/B preview, zoom/Fit the waveform, and adjust preview volume.
 - Choose semitone changes from `-12` to `+12`.
 - Export multiple semitone versions as WAV files.
-- Trim the export region and loop a preview region.
+- Trim the export region and loop a preview region with visible range controls and waveform handles.
 - Normalize exported audio.
 - Re-download completed exports during the same browser session.
+- Install as a standalone PWA from supported browsers.
 
 Uploaded files are decoded and rendered locally in the browser. Pasted media links may be fetched through the included Cloudflare Pages Function so the browser can decode them.
 
@@ -53,8 +55,9 @@ python3 -m http.server 8788
 
 ```bash
 npm run check
-node --check functions/api/fetch-media.js
 ```
+
+The check script runs JavaScript syntax checks for the browser app and Cloudflare Pages Function, then validates that key static UI/PWA hooks are present and stale placeholder UI is absent.
 
 ## Deploy
 
@@ -78,6 +81,8 @@ The included GitHub Actions workflow can deploy by direct upload when manually r
 
 ## Project Notes
 
-The current audio engine uses browser-side Web Audio rendering with overlap-add time scaling so exported WAV files keep the selected trim duration. BPM detection is an onset-based estimate from the decoded audio buffer. MP3 export is intentionally disabled until a licensed encoder is added.
+The current audio engine uses browser-side Web Audio rendering with overlap-add time scaling so exported WAV files keep the selected trim duration. BPM detection is an onset-based estimate from the decoded audio buffer.
+
+MP3 export, ZIP download-all, and WASM-grade time stretching are intentionally left out until the project chooses and reviews production dependencies and licensing.
 
 This project is intended for media you own or have permission to process.

@@ -1,0 +1,18 @@
+{
+  "name": "Audio Transposer",
+  "short_name": "Transposer",
+  "description": "Transpose authorized audio and video files in the browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#087f7c",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

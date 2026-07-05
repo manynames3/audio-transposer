@@ -7,18 +7,26 @@ const state = {
   sourceUrl: "",
   exports: [],
   activeNode: null,
+  activeGain: null,
   activeMode: "",
   previewStartedAt: 0,
   previewDuration: 0,
   previewRegionStart: 0,
+  playheadSeconds: 0,
   animationFrame: 0,
   isPlaying: false,
   isRendering: false,
   cancelRender: false,
   waveformPeaks: null,
+  waveformPeaksKey: "",
   bpm: null,
   bpmStatus: "idle",
   bpmAnalysisId: 0,
+  volume: 0.72,
+  zoomLevel: 1,
+  viewStart: 0,
+  viewEnd: 0,
+  dragHandle: "",
 };
 
 const els = {
@@ -32,9 +40,12 @@ const els = {
   metaName: document.querySelector("#meta-name"),
   metaDuration: document.querySelector("#meta-duration"),
   metaRate: document.querySelector("#meta-rate"),
+  metaChannels: document.querySelector("#meta-channels"),
   metaBpm: document.querySelector("#meta-bpm"),
   metaSize: document.querySelector("#meta-size"),
+  sourceReady: document.querySelector("#source-ready"),
   transportDuration: document.querySelector("#transport-duration"),
+  waveTimeAxis: document.querySelector("#wave-time-axis"),
   canvas: document.querySelector("#waveform"),
   emptyWaveform: document.querySelector("#empty-waveform"),
   semitoneRange: document.querySelector("#semitones"),
@@ -43,14 +54,23 @@ const els = {
   previewOriginal: document.querySelector("#preview-original"),
   previewTransposed: document.querySelector("#preview-transposed"),
   stopPreview: document.querySelector("#stop-preview"),
-  progress: document.querySelector("#progress"),
+  originalProgress: document.querySelector("#original-progress"),
+  transposedProgress: document.querySelector("#transposed-progress"),
   playheadTime: document.querySelector("#playhead-time"),
   abOriginalTime: document.querySelector("#ab-original-time"),
   abTransposedTime: document.querySelector("#ab-transposed-time"),
+  skipBack: document.querySelector("#skip-back"),
+  skipForward: document.querySelector("#skip-forward"),
+  volume: document.querySelector("#volume"),
+  zoomOut: document.querySelector("#zoom-out"),
+  zoomIn: document.querySelector("#zoom-in"),
+  zoomFit: document.querySelector("#zoom-fit"),
+  swapPreview: document.querySelector("#swap-preview"),
   stepDown: document.querySelector("#step-down"),
   stepUp: document.querySelector("#step-up"),
   trimStart: document.querySelector("#trim-start"),
   trimEnd: document.querySelector("#trim-end"),
+  trimToggle: document.querySelector("#trim-toggle"),
   loopEnabled: document.querySelector("#loop-enabled"),
   loopStart: document.querySelector("#loop-start"),
   loopEnd: document.querySelector("#loop-end"),
@@ -114,6 +134,12 @@ function formatDuration(seconds) {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
+function formatAxisTime(seconds) {
+  if (!Number.isFinite(seconds)) return "--";
+  if (seconds < 60) return `0:${String(Math.round(seconds)).padStart(2, "0")}`;
+  return formatDuration(seconds);
+}
+
 function formatPreciseTime(seconds) {
   if (!Number.isFinite(seconds)) return "--";
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
@@ -145,6 +171,13 @@ function formatBpm() {
   if (state.bpmStatus === "analyzing") return "Analyzing BPM...";
   if (!Number.isFinite(state.bpm)) return "BPM --";
   return `~${Math.round(state.bpm)} BPM`;
+}
+
+function formatChannels(count) {
+  if (!Number.isFinite(count) || count <= 0) return "--";
+  if (count === 1) return "Mono";
+  if (count === 2) return "Stereo";
+  return `${count} channels`;
 }
 
 function cleanName(name) {
@@ -278,6 +311,13 @@ function selectedBatchSemitones() {
 
 function getTrimRegion() {
   if (!state.audioBuffer) return { start: 0, end: 0, duration: 0 };
+  if (els.trimToggle && !els.trimToggle.checked) {
+    return {
+      start: 0,
+      end: state.audioBuffer.duration,
+      duration: state.audioBuffer.duration,
+    };
+  }
   const start = Number(els.trimStart.value);
   const end = Number(els.trimEnd.value);
   return {
@@ -299,13 +339,71 @@ function getPreviewRegion() {
   };
 }
 
+function clampTime(time, region = getPreviewRegion()) {
+  if (!state.audioBuffer) return 0;
+  return Math.max(region.start, Math.min(Number(time) || region.start, region.end));
+}
+
+function getVisibleRegion() {
+  if (!state.audioBuffer) return { start: 0, end: 0, duration: 0 };
+  const duration = state.audioBuffer.duration;
+  if (state.zoomLevel <= 1 || state.viewEnd <= state.viewStart) {
+    return { start: 0, end: duration, duration };
+  }
+  const visibleDuration = duration / state.zoomLevel;
+  let start = state.viewStart;
+  let end = state.viewEnd;
+  if (end - start !== visibleDuration) {
+    const center = clampTime(state.playheadSeconds, { start: 0, end: duration });
+    start = center - visibleDuration / 2;
+    end = center + visibleDuration / 2;
+  }
+  if (start < 0) {
+    end += -start;
+    start = 0;
+  }
+  if (end > duration) {
+    start = Math.max(0, start - (end - duration));
+    end = duration;
+  }
+  state.viewStart = start;
+  state.viewEnd = end;
+  return { start, end, duration: end - start };
+}
+
+function updateTimeAxis() {
+  if (!els.waveTimeAxis) return;
+  const labels = [];
+  const region = getVisibleRegion();
+  const count = window.matchMedia("(max-width: 760px)").matches ? 5 : 10;
+
+  if (!state.audioBuffer) {
+    labels.push("0:00", ...Array.from({ length: count - 1 }, () => "--"));
+  } else {
+    for (let index = 0; index < count; index += 1) {
+      const fraction = count === 1 ? 0 : index / (count - 1);
+      labels.push(formatAxisTime(region.start + region.duration * fraction));
+    }
+  }
+
+  els.waveTimeAxis.replaceChildren(
+    ...labels.map((label) => {
+      const span = document.createElement("span");
+      span.textContent = label;
+      return span;
+    }),
+  );
+}
+
 function updateMeta() {
   if (!state.audioBuffer) {
     els.metaName.textContent = "No source loaded";
     els.metaDuration.textContent = "--";
     els.metaRate.textContent = "--";
+    els.metaChannels.textContent = "--";
     els.metaBpm.textContent = "BPM --";
     els.metaSize.textContent = "--";
+    els.sourceReady.hidden = true;
     if (els.transportDuration) els.transportDuration.textContent = "--";
     updatePreviewTimes();
     return;
@@ -314,8 +412,10 @@ function updateMeta() {
   els.metaName.textContent = state.sourceName;
   els.metaDuration.textContent = formatDuration(state.audioBuffer.duration);
   els.metaRate.textContent = `${state.audioBuffer.sampleRate.toLocaleString()} Hz`;
+  els.metaChannels.textContent = formatChannels(state.audioBuffer.numberOfChannels);
   els.metaBpm.textContent = formatBpm();
   els.metaSize.textContent = formatBytes(state.sourceSize);
+  els.sourceReady.hidden = false;
   if (els.transportDuration) els.transportDuration.textContent = formatDuration(state.audioBuffer.duration);
 }
 
@@ -324,6 +424,23 @@ function updatePreviewTimes(seconds = 0) {
   const text = state.audioBuffer ? formatPreviewTimestamp(seconds) : "--";
   els.abOriginalTime.textContent = text;
   els.abTransposedTime.textContent = text;
+}
+
+function updateProgressDisplay(seconds = state.playheadSeconds) {
+  const region = getPreviewRegion();
+  const duration = Math.max(0.1, region.duration);
+  const percent = state.audioBuffer ? Math.max(0, Math.min(100, ((seconds - region.start) / duration) * 100)) : 0;
+  [els.originalProgress, els.transposedProgress].forEach((progress) => {
+    if (progress) progress.value = percent;
+  });
+  if (els.playheadTime) els.playheadTime.textContent = state.audioBuffer ? formatDuration(seconds) : "0:00";
+  updatePreviewTimes(seconds);
+}
+
+function setPlayhead(seconds, redraw = true) {
+  state.playheadSeconds = clampTime(seconds);
+  updateProgressDisplay(state.playheadSeconds);
+  if (redraw) drawWaveform(state.playheadSeconds);
 }
 
 async function buildOnsetEnvelope(buffer) {
@@ -440,11 +557,34 @@ async function analyzeBpm(buffer, analysisId) {
   }
 }
 
+function setPlayIcon(button, playing) {
+  if (!button) return;
+  const path = button.querySelector("path");
+  if (!path) return;
+  path.setAttribute("d", playing ? "M8 5h3v14H8zM13 5h3v14h-3z" : "M8 5v14l11-7-11-7Z");
+}
+
+function updatePlayButtons() {
+  document.querySelectorAll("[data-play-mode]").forEach((button) => {
+    const mode = button.dataset.playMode;
+    const isActive = state.isPlaying && state.activeMode === mode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-label", isActive ? `Pause ${mode} preview` : `Play ${mode} preview`);
+    setPlayIcon(button, isActive);
+  });
+  document.querySelectorAll(".ab-side").forEach((side) => {
+    const isOriginal = side.classList.contains("original");
+    side.classList.toggle("is-playing", state.isPlaying && state.activeMode === (isOriginal ? "original" : "transposed"));
+  });
+}
+
 function updateControls() {
   const loaded = Boolean(state.audioBuffer);
   const rendering = state.isRendering;
   const selected = selectedBatchSemitones();
   const canExport = loaded && selected.length > 0 && !rendering;
+  const canTransport = loaded && !rendering;
+  const trimEnabled = Boolean(els.trimToggle?.checked);
 
   els.previewOriginal.disabled = !loaded || rendering;
   els.previewTransposed.disabled = !loaded || rendering;
@@ -453,9 +593,23 @@ function updateControls() {
   els.renderBatch.disabled = !canExport;
   els.cancelRender.hidden = !rendering;
   els.clearExports.disabled = state.exports.length === 0 || rendering;
+  els.skipBack.disabled = !canTransport;
+  els.skipForward.disabled = !canTransport;
+  els.zoomOut.disabled = !canTransport || state.zoomLevel <= 1;
+  els.zoomIn.disabled = !canTransport || state.zoomLevel >= 8;
+  els.zoomFit.disabled = !canTransport || state.zoomLevel <= 1;
+  els.swapPreview.disabled = !canTransport;
+  els.trimToggle.disabled = !canTransport;
+  els.volume.disabled = !canTransport;
 
-  [els.trimStart, els.trimEnd, els.loopEnabled, els.loopStart, els.loopEnd].forEach((control) => {
+  [els.trimStart, els.trimEnd].forEach((control) => {
+    control.disabled = !canTransport || !trimEnabled;
+  });
+  [els.loopEnabled, els.loopStart, els.loopEnd].forEach((control) => {
     control.disabled = !loaded || rendering;
+  });
+  [els.loopStart, els.loopEnd].forEach((control) => {
+    control.disabled = !canTransport || !els.loopEnabled.checked;
   });
 
   els.previewOriginal.title = loaded ? "Preview original audio" : "Upload audio first";
@@ -467,10 +621,13 @@ function updateControls() {
       ? "Select at least one batch semitone"
       : "Upload audio first";
 
-  document.querySelectorAll("[data-proxy]").forEach((button) => {
-    const target = document.querySelector(`#${button.dataset.proxy}`);
-    button.disabled = target ? target.disabled : true;
+  document.querySelectorAll("[data-play-mode]").forEach((button) => {
+    button.disabled = !canTransport;
   });
+  document.querySelectorAll("[data-skip]").forEach((button) => {
+    button.disabled = !canTransport;
+  });
+  updatePlayButtons();
 }
 
 function updateSemitone(value, checkBatch = true) {
@@ -493,6 +650,7 @@ function updateRegionBounds() {
   if (!state.audioBuffer) {
     updateRegionLabels();
     updateEstimate();
+    updateTimeAxis();
     return;
   }
 
@@ -515,6 +673,7 @@ function updateRegionBounds() {
   els.loopEnd.value = String(Math.min(trimEnd, Number(els.loopEnd.value) || trimEnd));
 
   enforceRegions();
+  updateTimeAxis();
 }
 
 function enforceRegions(changedControl = null) {
@@ -522,11 +681,15 @@ function enforceRegions(changedControl = null) {
   const duration = state.audioBuffer.duration;
   const step = Number(els.trimStart.step) || 0.1;
 
-  let trimStart = Math.max(0, Math.min(Number(els.trimStart.value), duration - step));
-  let trimEnd = Math.max(step, Math.min(Number(els.trimEnd.value), duration));
-  if (trimStart >= trimEnd) {
-    if (changedControl === els.trimStart) trimEnd = Math.min(duration, trimStart + step);
-    else trimStart = Math.max(0, trimEnd - step);
+  let trimStart = 0;
+  let trimEnd = duration;
+  if (!els.trimToggle || els.trimToggle.checked) {
+    trimStart = Math.max(0, Math.min(Number(els.trimStart.value), duration - step));
+    trimEnd = Math.max(step, Math.min(Number(els.trimEnd.value), duration));
+    if (trimStart >= trimEnd) {
+      if (changedControl === els.trimStart) trimEnd = Math.min(duration, trimStart + step);
+      else trimStart = Math.max(0, trimEnd - step);
+    }
   }
 
   let loopStart = Math.max(trimStart, Math.min(Number(els.loopStart.value), trimEnd - step));
@@ -543,6 +706,7 @@ function enforceRegions(changedControl = null) {
 
   updateRegionLabels();
   updateEstimate();
+  setPlayhead(state.playheadSeconds, false);
   drawWaveform();
 }
 
@@ -574,16 +738,18 @@ function updateEstimate() {
   updateControls();
 }
 
-function buildPeaks(buffer) {
+function buildPeaks(buffer, startTime = 0, endTime = buffer.duration) {
   const width = els.canvas.width;
   const channel = buffer.getChannelData(0);
-  const samplesPerPixel = Math.max(1, Math.floor(channel.length / width));
+  const startSample = Math.max(0, Math.floor(startTime * buffer.sampleRate));
+  const endSample = Math.min(channel.length, Math.ceil(endTime * buffer.sampleRate));
+  const samplesPerPixel = Math.max(1, Math.floor((endSample - startSample) / width));
   const peaks = new Array(width);
   for (let x = 0; x < width; x += 1) {
     let min = 1;
     let max = -1;
-    const start = x * samplesPerPixel;
-    for (let i = 0; i < samplesPerPixel && start + i < channel.length; i += 1) {
+    const start = startSample + x * samplesPerPixel;
+    for (let i = 0; i < samplesPerPixel && start + i < endSample; i += 1) {
       const value = channel[start + i];
       if (value < min) min = value;
       if (value > max) max = value;
@@ -597,6 +763,7 @@ function drawWaveform(playhead = null) {
   const canvas = els.canvas;
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
+  updateTimeAxis();
   ctx.clearRect(0, 0, width, height);
 
   ctx.fillStyle = "#ffffff";
@@ -622,21 +789,32 @@ function drawWaveform(playhead = null) {
   }
 
   els.emptyWaveform.hidden = true;
-  if (!state.waveformPeaks) state.waveformPeaks = buildPeaks(state.audioBuffer);
+  const visible = getVisibleRegion();
+  const peaksKey = `${Math.round(visible.start * state.audioBuffer.sampleRate)}:${Math.round(visible.end * state.audioBuffer.sampleRate)}:${width}`;
+  if (!state.waveformPeaks || state.waveformPeaksKey !== peaksKey) {
+    state.waveformPeaks = buildPeaks(state.audioBuffer, visible.start, visible.end);
+    state.waveformPeaksKey = peaksKey;
+  }
 
   const trim = getTrimRegion();
   const loop = getPreviewRegion();
-  const duration = state.audioBuffer.duration;
   const center = height / 2;
-  const xForTime = (time) => (time / duration) * width;
+  const xForTime = (time) => ((time - visible.start) / visible.duration) * width;
+  const fillTimeRange = (start, end, color) => {
+    const left = Math.max(0, Math.min(width, xForTime(start)));
+    const right = Math.max(0, Math.min(width, xForTime(end)));
+    if (right <= 0 || left >= width || right <= left) return;
+    ctx.fillStyle = color;
+    ctx.fillRect(left, 0, right - left, height);
+  };
 
-  ctx.fillStyle = "rgba(20, 33, 31, 0.05)";
-  ctx.fillRect(0, 0, xForTime(trim.start), height);
-  ctx.fillRect(xForTime(trim.end), 0, width - xForTime(trim.end), height);
+  if (!els.trimToggle || els.trimToggle.checked) {
+    fillTimeRange(visible.start, trim.start, "rgba(20, 33, 31, 0.05)");
+    fillTimeRange(trim.end, visible.end, "rgba(20, 33, 31, 0.05)");
+  }
 
   if (els.loopEnabled.checked) {
-    ctx.fillStyle = "rgba(8, 127, 121, 0.08)";
-    ctx.fillRect(xForTime(loop.start), 0, Math.max(2, xForTime(loop.end) - xForTime(loop.start)), height);
+    fillTimeRange(loop.start, loop.end, "rgba(8, 127, 121, 0.08)");
   }
 
   const gradient = ctx.createLinearGradient(0, 0, width, 0);
@@ -654,14 +832,15 @@ function drawWaveform(playhead = null) {
   }
   ctx.stroke();
 
-  const markers = [
-    { x: xForTime(trim.start), color: "#14211f" },
-    { x: xForTime(trim.end), color: "#14211f" },
-  ];
+  const markers = [];
+  if (!els.trimToggle || els.trimToggle.checked) {
+    markers.push({ x: xForTime(trim.start), color: "#14211f" }, { x: xForTime(trim.end), color: "#14211f" });
+  }
   if (els.loopEnabled.checked) {
     markers.push({ x: xForTime(loop.start), color: "#087f79" }, { x: xForTime(loop.end), color: "#087f79" });
   }
   markers.forEach((marker) => {
+    if (marker.x < 0 || marker.x > width) return;
     ctx.strokeStyle = marker.color;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -672,12 +851,14 @@ function drawWaveform(playhead = null) {
 
   if (Number.isFinite(playhead)) {
     const x = xForTime(playhead);
-    ctx.strokeStyle = "#e45f4f";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
+    if (x >= 0 && x <= width) {
+      ctx.strokeStyle = "#e45f4f";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
   }
 }
 
@@ -702,19 +883,25 @@ async function decodeBlob(blob, name, sourceUrl = "") {
   });
   state.exports = [];
   state.waveformPeaks = null;
+  state.waveformPeaksKey = "";
+  state.zoomLevel = 1;
+  state.viewStart = 0;
+  state.viewEnd = decoded.duration;
+  state.playheadSeconds = 0;
 
   els.trimStart.value = "0";
   els.trimEnd.value = String(decoded.duration);
   els.loopStart.value = "0";
   els.loopEnd.value = String(Math.min(decoded.duration, Math.max(4, decoded.duration / 4)));
   els.loopEnabled.checked = false;
+  if (els.trimToggle) els.trimToggle.checked = true;
 
   updateMeta();
   updateRegionBounds();
   renderExportList();
   drawWaveform();
   updateControls();
-  updatePreviewTimes(0);
+  setPlayhead(0, false);
   analyzeBpm(decoded, bpmAnalysisId);
 
   const lengthNote =
@@ -774,6 +961,10 @@ async function loadUrl(value) {
 }
 
 function stopPreview() {
+  stopPreviewAt(0);
+}
+
+function stopPreviewAt(nextPlayhead = state.playheadSeconds) {
   if (state.activeNode) {
     try {
       state.activeNode.stop();
@@ -783,54 +974,70 @@ function stopPreview() {
     state.activeNode.disconnect();
   }
   state.activeNode = null;
+  state.activeGain = null;
   state.activeMode = "";
   state.isPlaying = false;
   cancelAnimationFrame(state.animationFrame);
-  els.progress.value = 0;
-  els.playheadTime.textContent = "0:00";
-  updatePreviewTimes(0);
+  setPlayhead(nextPlayhead);
   updateControls();
-  drawWaveform();
 }
 
-async function playBuffer(buffer, mode, regionStart, loop) {
+async function playBuffer(buffer, mode, regionStart, loop, offsetSeconds = 0) {
   const context = getAudioContext();
   await context.resume();
   const source = context.createBufferSource();
+  const gain = context.createGain();
   source.buffer = buffer;
-  source.connect(context.destination);
+  gain.gain.value = state.volume;
+  source.connect(gain);
+  gain.connect(context.destination);
   source.loop = loop;
   source.onended = () => {
-    if (state.activeNode === source && !source.loop) stopPreview();
+    if (state.activeNode === source && !source.loop) stopPreviewAt(regionStart + buffer.duration);
   };
-  source.start();
+  source.start(0, Math.max(0, Math.min(offsetSeconds, buffer.duration - 0.01)));
 
   state.activeNode = source;
+  state.activeGain = gain;
   state.activeMode = mode;
   state.isPlaying = true;
-  state.previewStartedAt = context.currentTime;
+  state.previewStartedAt = context.currentTime - offsetSeconds;
   state.previewDuration = buffer.duration;
   state.previewRegionStart = regionStart;
   updateControls();
   tickProgress();
 }
 
-async function previewOriginal() {
+async function previewOriginal(startAt = state.playheadSeconds) {
   if (!state.audioBuffer) return;
-  stopPreview();
+  const wasPlayingSameMode = state.isPlaying && state.activeMode === "original";
+  if (wasPlayingSameMode) {
+    stopPreviewAt(state.playheadSeconds);
+    setMessage("Original preview paused.", "success");
+    return;
+  }
+  stopPreviewAt(startAt);
   const region = getPreviewRegion();
+  const start = els.loopEnabled.checked ? region.start : clampTime(startAt, region);
   const buffer = copySegment(state.audioBuffer, region.start, region.end);
-  await playBuffer(buffer, "original", region.start, els.loopEnabled.checked);
+  await playBuffer(buffer, "original", region.start, els.loopEnabled.checked, start - region.start);
   setMessage("Playing original preview.", "success");
 }
 
-async function previewTransposed() {
+async function previewTransposed(startAt = state.playheadSeconds) {
   if (!state.audioBuffer) return;
-  stopPreview();
+  const wasPlayingSameMode = state.isPlaying && state.activeMode === "transposed";
+  if (wasPlayingSameMode) {
+    stopPreviewAt(state.playheadSeconds);
+    setMessage("Transposed preview paused.", "success");
+    return;
+  }
+  stopPreviewAt(startAt);
   const fullRegion = getPreviewRegion();
-  const cappedEnd = Math.min(fullRegion.end, fullRegion.start + previewLimitSeconds);
-  const region = { start: fullRegion.start, end: cappedEnd, duration: cappedEnd - fullRegion.start };
-  const capped = fullRegion.duration > previewLimitSeconds;
+  const start = els.loopEnabled.checked ? fullRegion.start : clampTime(startAt, fullRegion);
+  const cappedEnd = Math.min(fullRegion.end, start + previewLimitSeconds);
+  const region = { start, end: cappedEnd, duration: cappedEnd - start };
+  const capped = fullRegion.end - start > previewLimitSeconds;
   showToast(capped ? "Rendering first 30 seconds for fast transposed preview..." : "Rendering fast transposed preview...");
   const rendered = await pitchShiftRegion(state.audioBuffer, semitones(), region, {
     normalize: els.normalize.checked,
@@ -839,8 +1046,50 @@ async function previewTransposed() {
     shouldCancel: () => false,
   });
   const buffer = renderedToAudioBuffer(rendered);
-  await playBuffer(buffer, "transposed", region.start, els.loopEnabled.checked);
+  await playBuffer(buffer, "transposed", region.start, els.loopEnabled.checked, 0);
   setMessage("Playing transposed preview.", "success");
+}
+
+function playMode(mode) {
+  if (mode === "transposed") previewTransposed(state.playheadSeconds);
+  else previewOriginal(state.playheadSeconds);
+}
+
+function switchPreviewMode() {
+  if (!state.audioBuffer) return;
+  const nextMode = state.activeMode === "transposed" ? "original" : "transposed";
+  playMode(nextMode);
+}
+
+function skipPreview(seconds) {
+  if (!state.audioBuffer) return;
+  const next = clampTime(state.playheadSeconds + seconds);
+  const mode = state.activeMode;
+  const wasPlaying = state.isPlaying;
+  stopPreviewAt(next);
+  if (wasPlaying && mode) playMode(mode);
+}
+
+function zoomWaveform(direction) {
+  if (!state.audioBuffer) return;
+  const oldLevel = state.zoomLevel;
+  if (direction === "fit") state.zoomLevel = 1;
+  else state.zoomLevel = Math.max(1, Math.min(8, state.zoomLevel * (direction === "in" ? 2 : 0.5)));
+  if (state.zoomLevel === 1) {
+    state.viewStart = 0;
+    state.viewEnd = state.audioBuffer.duration;
+  } else if (state.zoomLevel !== oldLevel) {
+    const visibleDuration = state.audioBuffer.duration / state.zoomLevel;
+    const center = clampTime(state.playheadSeconds, { start: 0, end: state.audioBuffer.duration });
+    state.viewStart = Math.max(0, center - visibleDuration / 2);
+    state.viewEnd = Math.min(state.audioBuffer.duration, state.viewStart + visibleDuration);
+    if (state.viewEnd - state.viewStart < visibleDuration) {
+      state.viewStart = Math.max(0, state.viewEnd - visibleDuration);
+    }
+  }
+  state.waveformPeaks = null;
+  updateControls();
+  drawWaveform(state.playheadSeconds);
 }
 
 function tickProgress() {
@@ -849,9 +1098,8 @@ function tickProgress() {
   const loopElapsed = state.previewDuration > 0 ? elapsed % state.previewDuration : 0;
   const visibleElapsed = state.activeNode?.loop ? loopElapsed : Math.min(elapsed, state.previewDuration);
   const playhead = state.previewRegionStart + visibleElapsed;
-  els.progress.value = state.previewDuration > 0 ? Math.min(100, (visibleElapsed / state.previewDuration) * 100) : 0;
-  els.playheadTime.textContent = formatDuration(playhead);
-  updatePreviewTimes(playhead);
+  state.playheadSeconds = clampTime(playhead);
+  updateProgressDisplay(state.playheadSeconds);
   drawWaveform(playhead);
   state.animationFrame = requestAnimationFrame(tickProgress);
 }
@@ -1187,6 +1435,90 @@ function clearExports() {
   renderExportList();
 }
 
+function timeFromCanvasEvent(event) {
+  const rect = els.canvas.getBoundingClientRect();
+  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const visible = getVisibleRegion();
+  return visible.start + visible.duration * fraction;
+}
+
+function xForTimeInCanvas(time) {
+  const visible = getVisibleRegion();
+  const rect = els.canvas.getBoundingClientRect();
+  return ((time - visible.start) / visible.duration) * rect.width;
+}
+
+function nearestWaveformHandle(time, clientX) {
+  if (!state.audioBuffer) return "";
+  const trim = getTrimRegion();
+  const loop = getPreviewRegion();
+  const candidates = [];
+  if (!els.trimToggle || els.trimToggle.checked) {
+    candidates.push(["trimStart", trim.start], ["trimEnd", trim.end]);
+  }
+  if (els.loopEnabled.checked) {
+    candidates.push(["loopStart", loop.start], ["loopEnd", loop.end]);
+  }
+  let nearest = "";
+  let nearestDistance = 14;
+  candidates.forEach(([handle, handleTime]) => {
+    const distance = Math.abs(clientX - xForTimeInCanvas(handleTime));
+    if (distance < nearestDistance) {
+      nearest = handle;
+      nearestDistance = distance;
+    }
+  });
+  return nearest;
+}
+
+function setRegionHandle(handle, time) {
+  if (!handle) return;
+  if (handle === "trimStart") els.trimStart.value = String(time);
+  if (handle === "trimEnd") els.trimEnd.value = String(time);
+  if (handle === "loopStart") els.loopStart.value = String(time);
+  if (handle === "loopEnd") els.loopEnd.value = String(time);
+  enforceRegions(document.querySelector(`#${handle.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)}`));
+}
+
+function attachWaveformPointerEvents() {
+  els.canvas.addEventListener("pointerdown", (event) => {
+    if (!state.audioBuffer || state.isRendering) return;
+    const time = timeFromCanvasEvent(event);
+    const rect = els.canvas.getBoundingClientRect();
+    const handle = nearestWaveformHandle(time, event.clientX - rect.left);
+    if (handle) {
+      state.dragHandle = handle;
+      stopPreviewAt(state.playheadSeconds);
+      els.canvas.setPointerCapture(event.pointerId);
+      setRegionHandle(handle, time);
+      return;
+    }
+    const mode = state.activeMode;
+    const wasPlaying = state.isPlaying;
+    stopPreviewAt(time);
+    if (wasPlaying && mode) playMode(mode);
+  });
+
+  els.canvas.addEventListener("pointermove", (event) => {
+    if (!state.dragHandle) return;
+    setRegionHandle(state.dragHandle, timeFromCanvasEvent(event));
+  });
+
+  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
+    els.canvas.addEventListener(eventName, (event) => {
+      if (!state.dragHandle) return;
+      if (eventName !== "pointerleave") {
+        try {
+          els.canvas.releasePointerCapture(event.pointerId);
+        } catch {
+          // Pointer capture may already be released.
+        }
+      }
+      state.dragHandle = "";
+    });
+  });
+}
+
 function attachEvents() {
   els.form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1238,12 +1570,31 @@ function attachEvents() {
     stopPreview();
     enforceRegions();
   });
+  els.trimToggle.addEventListener("change", () => {
+    stopPreview();
+    enforceRegions();
+    updateControls();
+  });
 
   els.normalize.addEventListener("change", updateEstimate);
   els.batchGrid.addEventListener("change", updateEstimate);
-  els.previewOriginal.addEventListener("click", previewOriginal);
-  els.previewTransposed.addEventListener("click", previewTransposed);
-  els.stopPreview.addEventListener("click", stopPreview);
+  document.querySelectorAll("[data-play-mode]").forEach((button) => {
+    button.addEventListener("click", () => playMode(button.dataset.playMode));
+  });
+  document.querySelectorAll("[data-skip]").forEach((button) => {
+    button.addEventListener("click", () => skipPreview(Number(button.dataset.skip)));
+  });
+  els.skipBack.addEventListener("click", () => skipPreview(-10));
+  els.skipForward.addEventListener("click", () => skipPreview(10));
+  els.stopPreview.addEventListener("click", () => stopPreview());
+  els.swapPreview.addEventListener("click", switchPreviewMode);
+  els.zoomIn.addEventListener("click", () => zoomWaveform("in"));
+  els.zoomOut.addEventListener("click", () => zoomWaveform("out"));
+  els.zoomFit.addEventListener("click", () => zoomWaveform("fit"));
+  els.volume.addEventListener("input", () => {
+    state.volume = Number(els.volume.value);
+    if (state.activeGain) state.activeGain.gain.value = state.volume;
+  });
   els.downloadOriginal.addEventListener("click", downloadOriginal);
   els.renderBatch.addEventListener("click", renderBatch);
   els.cancelRender.addEventListener("click", () => {
@@ -1251,13 +1602,11 @@ function attachEvents() {
     showToast("Cancelling after the current render step...");
   });
   els.clearExports.addEventListener("click", clearExports);
-  document.querySelectorAll("[data-proxy]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const target = document.querySelector(`#${button.dataset.proxy}`);
-      if (target && !target.disabled) target.click();
-    });
+  attachWaveformPointerEvents();
+  window.addEventListener("resize", () => {
+    updateTimeAxis();
+    drawWaveform(state.playheadSeconds);
   });
-  window.addEventListener("resize", () => drawWaveform());
 }
 
 function init() {

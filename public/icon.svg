@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Audio Transposer">
+  <rect width="512" height="512" rx="96" fill="#087f7c"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-width="34">
+    <path d="M112 280v-48"/>
+    <path d="M160 340V172"/>
+    <path d="M208 388V124"/>
+    <path d="M256 348V164"/>
+    <path d="M304 404V108"/>
+    <path d="M352 340V172"/>
+    <path d="M400 292v-72"/>
+  </g>
+</svg>
