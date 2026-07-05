@@ -47,7 +47,7 @@ python3 -m http.server 8788
 npm run deploy
 ```
 
-The included GitHub Actions workflow can also deploy by direct upload after adding these repository secrets:
+The included GitHub Actions workflow can also deploy by direct upload when manually run after adding these repository secrets:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_API_TOKEN`
