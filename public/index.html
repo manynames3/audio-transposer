@@ -15,305 +15,385 @@
       <header class="topbar">
         <a class="brand" href="./" aria-label="Audio Transposer home">
           <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
-              <path d="M5 15.2V8.8c0-.8.9-1.3 1.6-.9l5.5 3.2c.7.4.7 1.4 0 1.8l-5.5 3.2c-.7.4-1.6-.1-1.6-.9Z" />
-              <path d="M14.4 7.2v9.6M18.8 5.6v12.8" />
+            <svg viewBox="0 0 40 40" role="img">
+              <path d="M5 21v-2" />
+              <path d="M10 27V13" />
+              <path d="M15 32V8" />
+              <path d="M20 28V12" />
+              <path d="M25 34V6" />
+              <path d="M30 27V13" />
+              <path d="M35 22v-4" />
             </svg>
           </span>
-          <span>
-            <strong>Audio Transposer</strong>
-            <small>Authorized media only</small>
-          </span>
+          <strong>Audio Transposer</strong>
         </a>
         <nav class="top-actions" aria-label="App links">
-          <a href="#privacy">Privacy</a>
-          <a href="mailto:support@audio-transposer.app?subject=Audio%20Transposer%20Support">Support</a>
+          <a href="#how-it-works">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9.7 9a2.4 2.4 0 0 1 4.6 1.1c0 1.7-2.3 2.1-2.3 3.5" />
+              <path d="M12 17h.01" />
+            </svg>
+            <span>How it works</span>
+          </a>
+          <a href="mailto:support@audio-transposer.app?subject=Audio%20Transposer%20Support">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a8 8 0 0 1-8 8H8l-5 2 1.8-4.2A8 8 0 1 1 21 12Z" />
+            </svg>
+            <span>Support</span>
+          </a>
         </nav>
       </header>
 
       <main class="studio-grid">
-        <section class="panel source-panel" aria-labelledby="source-title">
-          <div class="panel-heading">
-            <div>
-              <h1 id="source-title">Start with audio</h1>
-              <p>Upload a file first. Direct audio URLs are secondary.</p>
-            </div>
-            <span class="status-pill">Local processing</span>
-          </div>
-
+        <section class="workspace-main" aria-label="Audio editor">
           <div class="drop-zone" id="drop-zone">
             <input id="file-input" type="file" accept="audio/*,video/mp4,video/webm" />
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 16V4M7 9l5-5 5 5" />
-              <path d="M5 18.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5" />
+            <svg viewBox="0 0 80 64" aria-hidden="true" class="upload-icon">
+              <path d="M24 48H18a14 14 0 0 1-1.5-27.9A20 20 0 0 1 55 18a16 16 0 0 1 3 31h-6" />
+              <path d="M40 48V22" />
+              <path d="m29 33 11-11 11 11" />
             </svg>
-            <div>
+            <div class="drop-copy">
               <strong>Drop audio here to transpose</strong>
-              <span>or click to choose a file from this device</span>
+              <span>or click to browse files</span>
+              <small>MP3, WAV, M4A, AAC, OGG, WebM, MP4 <b>•</b> Recommended max: 30 minutes</small>
             </div>
           </div>
 
-          <div class="source-guidance" aria-label="Supported import details">
-            <div>
-              <span>Formats</span>
-              <strong>MP3, WAV, M4A, AAC, OGG, WebM, MP4</strong>
-            </div>
-            <div>
-              <span>Recommended max</span>
-              <strong>30 minutes</strong>
-            </div>
-            <div>
-              <span>Privacy</span>
-              <strong>Audio stays in your browser</strong>
-            </div>
-          </div>
-
-          <details class="url-card">
-            <summary>
-              <span>Direct audio file URL</span>
+          <form class="url-form" id="url-form">
+            <div class="url-label">
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
+                <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+                <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
               </svg>
-            </summary>
-            <form class="url-form" id="url-form">
-              <label for="source-url">CORS-enabled media file</label>
-              <div class="input-row">
-                <input
-                  id="source-url"
-                  name="source-url"
-                  type="url"
-                  placeholder="https://example.com/song.mp3"
-                  autocomplete="url"
-                />
-                <button class="button primary" type="submit" title="Load direct audio URL">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 12h13M13 6l6 6-6 6" />
+              <label for="source-url">Direct audio file URL</label>
+            </div>
+            <input
+              id="source-url"
+              name="source-url"
+              type="url"
+              placeholder="https://example.com/audio/file.mp3"
+              autocomplete="url"
+            />
+            <button class="button outline" type="submit">Load</button>
+          </form>
+
+          <section class="waveform-card" aria-labelledby="loaded-file-title">
+            <header class="file-header">
+              <div class="file-title">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 18V5l10-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="16" cy="16" r="3" />
+                </svg>
+                <strong id="loaded-file-title">
+                  <span id="meta-name">Song Title - Artist Name</span>
+                </strong>
+                <span class="check-dot" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="m7 12 3 3 7-7" />
                   </svg>
-                  <span>Load</span>
+                </span>
+              </div>
+              <div class="file-meta" id="source-meta" aria-live="polite">
+                <span id="meta-duration">04:23</span>
+                <b>•</b>
+                <span id="meta-rate">44.1 kHz</span>
+                <b>•</b>
+                <span>Stereo</span>
+                <span id="meta-size">70.2 MB</span>
+                <button class="icon-menu" type="button" aria-label="More file actions">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5h.01M12 12h.01M12 19h.01" />
+                  </svg>
                 </button>
               </div>
-              <p>
-                YouTube watch links are not direct audio files. For your own YouTube media, export
-                the file first, then upload it here.
-              </p>
-            </form>
-          </details>
+            </header>
 
-          <div class="source-meta" id="source-meta" aria-live="polite">
-            <div>
-              <span>File</span>
-              <strong id="meta-name">No source loaded</strong>
+            <div class="wave-time-axis" aria-hidden="true">
+              <span>0:00</span>
+              <span>0:30</span>
+              <span>1:00</span>
+              <span>1:30</span>
+              <span>2:00</span>
+              <span>2:30</span>
+              <span>3:00</span>
+              <span>3:30</span>
+              <span>4:00</span>
+              <span>4:30</span>
             </div>
-            <div>
-              <span>Duration</span>
-              <strong id="meta-duration">--</strong>
-            </div>
-            <div>
-              <span>Sample rate</span>
-              <strong id="meta-rate">--</strong>
-            </div>
-            <div>
-              <span>Size</span>
-              <strong id="meta-size">--</strong>
-            </div>
-          </div>
 
-          <div class="message" id="message" role="status" aria-live="polite"></div>
-        </section>
-
-        <section class="panel editor-panel" aria-labelledby="editor-title">
-          <div class="panel-heading editor-heading">
-            <div>
-              <h2 id="editor-title">Transpose studio</h2>
-              <p>Fast A/B preview, tempo-preserved WAV export.</p>
+            <div class="waveform-wrap">
+              <canvas id="waveform" width="1400" height="260" aria-label="Audio waveform with trim, loop, and playhead"></canvas>
+              <div class="trim-edge trim-left" aria-hidden="true"></div>
+              <div class="trim-edge trim-right" aria-hidden="true"></div>
+              <div class="empty-waveform" id="empty-waveform">
+                <svg viewBox="0 0 80 64" aria-hidden="true">
+                  <path d="M24 48H18a14 14 0 0 1-1.5-27.9A20 20 0 0 1 55 18a16 16 0 0 1 3 31h-6" />
+                  <path d="M40 48V22" />
+                  <path d="m29 33 11-11 11 11" />
+                </svg>
+                <strong>Drop audio here to transpose</strong>
+                <span>Waveform, trim, loop, and export controls unlock after upload.</span>
+              </div>
             </div>
-            <output class="semitone-readout" id="semitone-readout" for="semitones">0 st</output>
-          </div>
 
-          <div class="waveform-wrap">
-            <canvas id="waveform" width="1400" height="430" aria-label="Audio waveform with trim, loop, and playhead"></canvas>
-            <div class="empty-waveform" id="empty-waveform">
+            <footer class="wave-transport">
+              <div class="transport-left">
+                <button class="play-main" id="preview-original" type="button" disabled aria-label="Preview original">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14l11-7-11-7Z" />
+                  </svg>
+                </button>
+                <button class="icon-soft" type="button" aria-label="Skip forward" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m4 6 8 6-8 6V6Z" />
+                    <path d="m12 6 8 6-8 6V6Z" />
+                  </svg>
+                </button>
+                <button class="icon-soft" type="button" aria-label="Volume" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                  </svg>
+                </button>
+                <span class="volume-track" aria-hidden="true"><span></span></span>
+              </div>
+              <div class="transport-time">
+                <strong id="playhead-time">0:00</strong>
+                <span>/</span>
+                <span id="transport-duration">04:23.000</span>
+              </div>
+              <div class="transport-right">
+                <button class="icon-soft" type="button" aria-label="Zoom out" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.2-3.2M8 11h6" />
+                  </svg>
+                </button>
+                <button class="icon-soft" type="button" aria-label="Zoom in" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.2-3.2M8 11h6M11 8v6" />
+                  </svg>
+                </button>
+                <button class="button small" type="button" disabled>Fit</button>
+              </div>
+            </footer>
+          </section>
+
+          <nav class="tabbar" aria-label="Editor views">
+            <a class="is-active" href="#ab-panel">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 13h2l2-7 4 14 4-10 2 3h2" />
               </svg>
-              <strong>Drop audio here to transpose</strong>
-              <span>Waveform, trim, loop, and export controls unlock after upload.</span>
-            </div>
-          </div>
+              <span>A/B Preview</span>
+            </a>
+            <a href="#transpose-panel">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h10M10 3l4 4-4 4M20 17H10M14 13l-4 4 4 4" />
+              </svg>
+              <span>Transpose &amp; Export</span>
+            </a>
+            <a href="#settings-panel">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5.9Z" />
+              </svg>
+              <span>Settings</span>
+            </a>
+          </nav>
 
-          <div class="transport">
-            <div class="ab-preview" aria-label="A/B Preview">
-              <button class="button primary" id="preview-original" type="button" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 5v14l11-7-11-7Z" />
-                </svg>
-                <span>Original</span>
-              </button>
-              <button class="button primary" id="preview-transposed" type="button" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 5v14l11-7-11-7Z" />
-                </svg>
-                <span>Transposed</span>
-              </button>
-              <button class="button ghost" id="stop-preview" type="button" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 7h10v10H7z" />
-                </svg>
-                <span>Stop</span>
-              </button>
-            </div>
-            <div class="progress-group">
-              <div>
-                <label for="progress">A/B Preview</label>
-                <output id="playhead-time" for="progress">0:00</output>
+          <section class="ab-panel" id="ab-panel" aria-label="A/B Preview controls">
+            <div class="ab-side original">
+              <header>
+                <h2>Original</h2>
+                <span>A</span>
+              </header>
+              <div class="ab-controls">
+                <button class="ab-play" type="button" data-proxy="preview-original">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14l11-7-11-7Z" />
+                  </svg>
+                </button>
+                <button class="rewind" type="button" disabled>10</button>
+                <button class="rewind" type="button" disabled>10</button>
+                <span>01:28.450</span>
+                <progress id="progress" value="0" max="100"></progress>
               </div>
-              <progress id="progress" value="0" max="100"></progress>
             </div>
-          </div>
+            <button class="swap-button" type="button" aria-label="Swap comparison" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3 3m-3-3 3-3" />
+              </svg>
+            </button>
+            <div class="ab-side transposed">
+              <header>
+                <h2>Transposed</h2>
+                <span>B</span>
+              </header>
+              <div class="ab-controls">
+                <button class="ab-play" id="preview-transposed" type="button" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14l11-7-11-7Z" />
+                  </svg>
+                </button>
+                <button class="rewind" type="button" disabled>10</button>
+                <button class="rewind" type="button" disabled>10</button>
+                <span>01:28.450</span>
+                <span class="ab-volume" aria-hidden="true"><span></span></span>
+              </div>
+            </div>
+            <button class="hidden-stop" id="stop-preview" type="button" disabled>Stop</button>
+          </section>
 
-          <div class="control-grid">
-            <section class="control-block" aria-labelledby="pitch-title">
-              <div class="control-head">
-                <div>
-                  <h3 id="pitch-title">Semitone shift</h3>
-                  <p>Preview is capped at 30 seconds; export renders the selected trim.</p>
-                </div>
-                <div class="stepper" aria-label="Semitone stepper">
-                  <button type="button" id="step-down" title="Transpose down one semitone">-</button>
-                  <input id="semitone-number" type="number" min="-12" max="12" step="1" value="0" />
-                  <button type="button" id="step-up" title="Transpose up one semitone">+</button>
-                </div>
-              </div>
+          <section class="transpose-panel" id="transpose-panel" aria-label="Transpose controls">
+            <div class="semitone-card">
+              <header>
+                <span>Semitones</span>
+                <output class="semitone-readout" id="semitone-readout" for="semitones">0 st</output>
+              </header>
               <input id="semitones" type="range" min="-12" max="12" step="1" value="0" />
+              <div class="range-labels">
+                <span>-12</span>
+                <span>+12</span>
+              </div>
+              <div class="step-actions">
+                <button class="button outline" type="button" id="step-down">-1</button>
+                <button class="button outline" type="button" id="step-up">+1</button>
+                <button class="button light" type="button" data-preset="0">Reset</button>
+                <input id="semitone-number" type="number" min="-12" max="12" step="1" value="0" aria-label="Semitone value" />
+              </div>
+            </div>
+
+            <div class="preset-card">
+              <span>Semitone presets</span>
               <div class="preset-grid" aria-label="Quick semitone presets">
                 <button type="button" data-preset="-12">-12</button>
                 <button type="button" data-preset="-7">-7</button>
                 <button type="button" data-preset="-5">-5</button>
                 <button type="button" data-preset="-2">-2</button>
+                <button type="button" data-preset="-1">-1</button>
                 <button type="button" data-preset="0">0</button>
+                <button type="button" data-preset="1">+1</button>
                 <button type="button" data-preset="2">+2</button>
+                <button type="button" data-preset="3">+3</button>
                 <button type="button" data-preset="5">+5</button>
                 <button type="button" data-preset="7">+7</button>
                 <button type="button" data-preset="12">+12</button>
               </div>
-            </section>
-
-            <section class="control-block" aria-labelledby="region-title">
-              <div class="control-head stacked">
-                <div>
-                  <h3 id="region-title">Loop and trim</h3>
-                  <p>Trim controls export length. Loop controls A/B preview.</p>
-                </div>
+              <div class="toggle-row">
                 <label class="toggle">
-                  <input id="loop-enabled" type="checkbox" disabled />
                   <span>Loop</span>
+                  <input id="loop-enabled" type="checkbox" disabled />
+                </label>
+                <label class="toggle">
+                  <span>Trim</span>
+                  <input id="trim-toggle" type="checkbox" checked disabled />
+                </label>
+                <span class="trim-times">
+                  <output id="trim-start-label" for="trim-start">0:00</output>
+                  <span>–</span>
+                  <output id="trim-end-label" for="trim-end">0:00</output>
+                </span>
+                <label class="toggle">
+                  <span>Normalize</span>
+                  <input id="normalize" type="checkbox" checked />
                 </label>
               </div>
-
-              <div class="range-pair">
-                <div>
-                  <label for="trim-start">Trim start</label>
-                  <output id="trim-start-label" for="trim-start">0:00</output>
+              <div class="hidden-ranges" aria-label="Loop and trim range controls">
+                <label>
+                  <span>Trim start</span>
                   <input id="trim-start" type="range" min="0" max="1" step="0.1" value="0" disabled />
-                </div>
-                <div>
-                  <label for="trim-end">Trim end</label>
-                  <output id="trim-end-label" for="trim-end">0:00</output>
+                </label>
+                <label>
+                  <span>Trim end</span>
                   <input id="trim-end" type="range" min="0" max="1" step="0.1" value="1" disabled />
-                </div>
-                <div>
-                  <label for="loop-start">Loop start</label>
+                </label>
+                <label>
+                  <span>Loop start</span>
                   <output id="loop-start-label" for="loop-start">0:00</output>
                   <input id="loop-start" type="range" min="0" max="1" step="0.1" value="0" disabled />
-                </div>
-                <div>
-                  <label for="loop-end">Loop end</label>
+                </label>
+                <label>
+                  <span>Loop end</span>
                   <output id="loop-end-label" for="loop-end">0:00</output>
                   <input id="loop-end" type="range" min="0" max="1" step="0.1" value="1" disabled />
-                </div>
+                </label>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+
+          <footer class="privacy-footer" id="how-it-works">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+              <path d="M6 11h12v10H6z" />
+            </svg>
+            <strong>Audio stays in your browser</strong>
+            <span>No uploads</span>
+            <span>No data stored</span>
+            <span>Your files never leave this device</span>
+          </footer>
+
+          <div class="message" id="message" role="status" aria-live="polite"></div>
         </section>
 
-        <aside class="panel export-panel" aria-labelledby="export-title">
-          <div class="panel-heading">
-            <div>
-              <h2 id="export-title">Export</h2>
-              <p>Batch render professional filenames.</p>
-            </div>
-          </div>
-
-          <section class="export-section" aria-labelledby="batch-title">
-            <div class="section-title">
-              <h3 id="batch-title">Batch exports</h3>
-              <span id="estimate-count">1 file</span>
-            </div>
+        <aside class="export-panel" aria-labelledby="batch-title">
+          <section class="rail-section batch-section">
+            <h2 id="batch-title">Batch exports</h2>
+            <p>Choose semitone values to export</p>
             <div class="batch-grid" id="batch-grid" aria-label="Batch semitone selections">
-              <label><input type="checkbox" value="-12" /> -12</label>
-              <label><input type="checkbox" value="-7" /> -7</label>
-              <label><input type="checkbox" value="-5" /> -5</label>
-              <label><input type="checkbox" value="-2" /> -2</label>
-              <label><input type="checkbox" value="0" checked /> 0</label>
-              <label><input type="checkbox" value="2" /> +2</label>
-              <label><input type="checkbox" value="5" /> +5</label>
-              <label><input type="checkbox" value="7" /> +7</label>
-              <label><input type="checkbox" value="12" /> +12</label>
+              <label><input type="checkbox" value="-12" /> <span>-12</span></label>
+              <label><input type="checkbox" value="-7" /> <span>-7</span></label>
+              <label><input type="checkbox" value="-5" /> <span>-5</span></label>
+              <label><input type="checkbox" value="-2" checked /> <span>-2</span></label>
+              <label><input type="checkbox" value="-1" /> <span>-1</span></label>
+              <label><input type="checkbox" value="0" checked /> <span>0</span></label>
+              <label><input type="checkbox" value="1" /> <span>+1</span></label>
+              <label><input type="checkbox" value="2" checked /> <span>+2</span></label>
+              <label><input type="checkbox" value="3" /> <span>+3</span></label>
+              <label><input type="checkbox" value="5" /> <span>+5</span></label>
+              <label><input type="checkbox" value="7" /> <span>+7</span></label>
+              <label><input type="checkbox" value="12" /> <span>+12</span></label>
             </div>
           </section>
 
-          <section class="export-section">
-            <div class="option-row">
-              <label class="toggle">
-                <input id="normalize" type="checkbox" checked />
-                <span>Normalize</span>
-              </label>
-              <span>Peak target -0.5 dB</span>
-            </div>
-            <div class="option-row disabled-row">
-              <span>MP3 export</span>
-              <span>Requires licensed encoder</span>
-            </div>
-          </section>
-
-          <section class="estimate-card" aria-labelledby="estimate-title">
-            <h3 id="estimate-title">Estimate</h3>
+          <section class="rail-section estimate-section">
+            <h2>Estimate</h2>
             <dl>
               <div>
-                <dt>Trimmed length</dt>
-                <dd id="estimate-duration">--</dd>
+                <dt>Format</dt>
+                <dd><button class="select-like" type="button" disabled>WAV (lossless)</button></dd>
               </div>
               <div>
-                <dt>WAV size</dt>
-                <dd id="estimate-size">--</dd>
+                <dt>Selected</dt>
+                <dd><span id="estimate-count">3 files</span></dd>
+              </div>
+              <div>
+                <dt>Duration</dt>
+                <dd id="estimate-duration">03:58.500</dd>
+              </div>
+              <div>
+                <dt>Estimated size</dt>
+                <dd id="estimate-size">~ 318 MB</dd>
               </div>
             </dl>
-          </section>
-
-          <div class="export-actions">
-            <button class="button ghost" id="download-original" type="button" disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3v12M7 10l5 5 5-5" />
-                <path d="M5 20h14" />
-              </svg>
-              <span>Download original</span>
-            </button>
-            <button class="button primary" id="render-batch" type="button" disabled>
+            <button class="export-button" id="render-batch" type="button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 3v12M7 10l5 5 5-5" />
                 <path d="M4 20h16" />
               </svg>
               <span>Export WAV</span>
             </button>
-            <button class="button danger" id="cancel-render" type="button" hidden>
-              <span>Cancel render</span>
-            </button>
-          </div>
+            <button class="cancel-button" id="cancel-render" type="button" hidden>Cancel render</button>
+            <p class="mp3-note">MP3 export requires licensed encoder <span>?</span></p>
+          </section>
 
-          <section class="queue-section" aria-labelledby="queue-title">
-            <div class="section-title">
-              <h3 id="queue-title">Export queue</h3>
-              <button id="clear-exports" type="button" disabled>Clear</button>
+          <section class="rail-section queue-section" aria-labelledby="queue-title">
+            <div class="rail-heading">
+              <h2 id="queue-title">Export queue</h2>
+              <button id="clear-exports" type="button" disabled>Clear completed</button>
             </div>
             <div class="version-list" id="version-list">
               <div class="empty-list">
@@ -323,19 +403,59 @@
             </div>
           </section>
 
-          <section class="trust-panel" id="privacy" aria-labelledby="trust-title">
-            <h3 id="trust-title">Trust notes</h3>
-            <ul>
-              <li>Audio stays in your browser unless you fetch a direct URL.</li>
-              <li>Use only media you own or have permission to process.</li>
-              <li>Best in current Chrome, Edge, Safari, and Firefox.</li>
-              <li>Privacy-safe event counters track page views and errors only.</li>
-            </ul>
-            <p>Future paid path: Stripe Payment Link plus license key Worker, no login required.</p>
+          <section class="trust-panel" id="privacy" aria-label="Trust notes">
+            <div class="trust-item">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 20 6v5c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-3Z" />
+                <path d="m8 12 3 3 5-6" />
+              </svg>
+              <div>
+                <strong>Audio stays in your browser</strong>
+                <span>We process everything locally on your device.</span>
+              </div>
+            </div>
+            <div class="trust-item">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 20 6v5c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-3Z" />
+                <path d="M9 12h6M12 9v6" />
+              </svg>
+              <div>
+                <strong>Authorized media only</strong>
+                <span>You must own or have permission to process.</span>
+              </div>
+            </div>
+            <div class="trust-item">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 20 6v5c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-3Z" />
+              </svg>
+              <div>
+                <strong>Works in modern browsers</strong>
+                <span>Chrome, Edge, Safari, Firefox (latest)</span>
+              </div>
+            </div>
+            <div class="trust-item">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9.7 9a2.4 2.4 0 0 1 4.6 1.1c0 1.7-2.3 2.1-2.3 3.5" />
+                <path d="M12 17h.01" />
+              </svg>
+              <div>
+                <strong>Support</strong>
+                <span>Get help or report an issue.</span>
+              </div>
+            </div>
           </section>
+
+          <footer class="rail-footer">
+            <span>Pro features &amp; licensing coming soon.</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+            </svg>
+          </footer>
         </aside>
       </main>
 
+      <button class="hidden-download" id="download-original" type="button" disabled>Download original</button>
       <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
     </div>
 

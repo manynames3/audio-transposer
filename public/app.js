@@ -29,6 +29,7 @@ const els = {
   metaDuration: document.querySelector("#meta-duration"),
   metaRate: document.querySelector("#meta-rate"),
   metaSize: document.querySelector("#meta-size"),
+  transportDuration: document.querySelector("#transport-duration"),
   canvas: document.querySelector("#waveform"),
   emptyWaveform: document.querySelector("#empty-waveform"),
   semitoneRange: document.querySelector("#semitones"),
@@ -223,6 +224,7 @@ function updateMeta() {
     els.metaDuration.textContent = "--";
     els.metaRate.textContent = "--";
     els.metaSize.textContent = "--";
+    if (els.transportDuration) els.transportDuration.textContent = "--";
     return;
   }
 
@@ -230,6 +232,7 @@ function updateMeta() {
   els.metaDuration.textContent = formatDuration(state.audioBuffer.duration);
   els.metaRate.textContent = `${state.audioBuffer.sampleRate.toLocaleString()} Hz`;
   els.metaSize.textContent = formatBytes(state.sourceSize);
+  if (els.transportDuration) els.transportDuration.textContent = formatDuration(state.audioBuffer.duration);
 }
 
 function updateControls() {
@@ -258,6 +261,11 @@ function updateControls() {
     : loaded
       ? "Select at least one batch semitone"
       : "Upload audio first";
+
+  document.querySelectorAll("[data-proxy]").forEach((button) => {
+    const target = document.querySelector(`#${button.dataset.proxy}`);
+    button.disabled = target ? target.disabled : true;
+  });
 }
 
 function updateSemitone(value, checkBatch = true) {
@@ -1030,6 +1038,12 @@ function attachEvents() {
     showToast("Cancelling after the current render step...");
   });
   els.clearExports.addEventListener("click", clearExports);
+  document.querySelectorAll("[data-proxy]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = document.querySelector(`#${button.dataset.proxy}`);
+      if (target && !target.disabled) target.click();
+    });
+  });
   window.addEventListener("resize", () => drawWaveform());
 }
 
