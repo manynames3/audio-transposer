@@ -4,7 +4,7 @@ A static browser app for transposing authorized audio and downloading original o
 
 ## What it does
 
-- Upload an audio/video file, or load a CORS-enabled direct audio URL.
+- Upload an audio/video file, or load a direct audio/video file link.
 - Give a clear upload path for authorized YouTube media exported from your own account.
 - Preview original vs transposed audio.
 - Trim the export region and optionally loop a preview region.
@@ -13,7 +13,7 @@ A static browser app for transposing authorized audio and downloading original o
 - Download the original source file.
 - Re-download rendered `WAV` versions during the same browser session.
 
-All decoding and rendering happens locally in the browser. No source audio is uploaded to a server.
+Uploaded files are decoded and rendered locally in the browser. Pasted media file links may be fetched through the included Cloudflare Pages Function when the remote server does not allow browser CORS.
 
 ## Important media note
 

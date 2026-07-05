@@ -196,6 +196,56 @@ function isYouTubeUrl(value) {
   }
 }
 
+function mediaNameFromUrl(value) {
+  try {
+    const url = new URL(value);
+    return decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "linked-media");
+  } catch {
+    return "linked-media";
+  }
+}
+
+function blobLooksLikeMedia(blob, response) {
+  const contentType = (blob.type || response.headers.get("content-type") || "").toLowerCase();
+  if (!contentType) return blob.size > 0;
+  return (
+    contentType.startsWith("audio/") ||
+    contentType.startsWith("video/") ||
+    contentType.includes("octet-stream")
+  );
+}
+
+async function fetchDirectMediaUrl(value) {
+  const response = await fetch(value, { mode: "cors" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const blob = await response.blob();
+  if (!blobLooksLikeMedia(blob, response)) throw new Error("URL did not return media");
+  return {
+    blob,
+    name: mediaNameFromUrl(value),
+  };
+}
+
+async function fetchProxiedMediaUrl(value) {
+  const response = await fetch(`/api/fetch-media?url=${encodeURIComponent(value)}`);
+  if (!response.ok) {
+    let message = "That link could not be loaded as media.";
+    try {
+      const payload = await response.json();
+      if (payload?.error) message = payload.error;
+    } catch {
+      // Keep the generic message when the proxy cannot return JSON.
+    }
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  if (!blobLooksLikeMedia(blob, response)) throw new Error("That link did not return audio or video.");
+  return {
+    blob,
+    name: response.headers.get("x-source-filename") || mediaNameFromUrl(value),
+  };
+}
+
 function selectedBatchSemitones() {
   return [...els.batchGrid.querySelectorAll("input:checked")]
     .map((input) => Number(input.value))
@@ -546,27 +596,25 @@ async function loadUrl(value) {
   }
 
   if (isYouTubeUrl(value)) {
-    setUrlStatus("YouTube watch links are not direct media files. Upload an audio/video file or use a direct file URL.", "error");
+    setUrlStatus("YouTube links need the live-capture/extension workflow. This web app accepts uploads and direct audio/video file links.", "error");
     trackEvent("url_load_error", { reason: "youtube_watch_url" });
     return;
   }
 
   try {
-    setUrlStatus("Loading direct media URL...");
-    const response = await fetch(value, { mode: "cors" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const blob = await response.blob();
-    const contentType = blob.type || response.headers.get("content-type") || "";
-    if (!contentType.includes("audio") && !contentType.includes("video") && blob.size === 0) {
-      throw new Error("URL did not return media");
+    setUrlStatus("Loading media link...");
+    let media;
+    try {
+      media = await fetchDirectMediaUrl(value);
+    } catch {
+      setUrlStatus("Loading media link through secure importer...");
+      media = await fetchProxiedMediaUrl(value);
     }
-    const url = new URL(value);
-    const name = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "direct-audio");
-    await decodeBlob(blob, name, value);
+    await decodeBlob(media.blob, media.name, value);
     setUrlStatus();
   } catch (error) {
     console.error(error);
-    setUrlStatus("That URL could not be loaded. Use a direct audio/video file URL from a server that allows browser access.", "error");
+    setUrlStatus(error.message || "That link could not be loaded as an audio/video file.", "error");
     trackEvent("url_load_error", { reason: "fetch_or_decode_failed" });
   }
 }

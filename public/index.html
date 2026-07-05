@@ -8,7 +8,7 @@
       content="Upload authorized audio, transpose it by semitone, and export tempo-preserved WAV versions in the browser."
     />
     <title>Audio Transposer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-0045" />
+    <link rel="stylesheet" href="./styles.css?v=20260705-0105" />
   </head>
   <body>
     <div class="app-shell">
@@ -67,13 +67,13 @@
                 <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
                 <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
               </svg>
-              <label for="source-url">Direct audio file URL</label>
+              <label for="source-url">Audio/video file link</label>
             </div>
             <input
               id="source-url"
               name="source-url"
               type="url"
-              placeholder="https://example.com/audio/file.mp3"
+              placeholder="https://example.com/audio-or-video-file.mp3"
               autocomplete="url"
               aria-describedby="url-status"
             />
@@ -461,6 +461,6 @@
       <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
     </div>
 
-    <script src="./app.js?v=20260705-0045" type="module"></script>
+    <script src="./app.js?v=20260705-0105" type="module"></script>
   </body>
 </html>
