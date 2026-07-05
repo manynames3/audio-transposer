@@ -412,6 +412,11 @@ svg {
   margin-left: 35px;
 }
 
+.file-meta #meta-bpm {
+  color: var(--teal-deep);
+  font-weight: 650;
+}
+
 .icon-menu {
   display: grid;
   width: 32px;
@@ -1440,12 +1445,22 @@ progress::-moz-progress-bar {
   }
 
   .file-meta {
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     white-space: normal;
   }
 
+  .file-meta b {
+    display: none;
+  }
+
   .file-meta #meta-size {
     margin-left: 0;
+  }
+
+  .file-meta .icon-menu {
+    margin-left: auto;
   }
 
   .wave-time-axis {

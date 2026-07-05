@@ -16,6 +16,9 @@ const state = {
   isRendering: false,
   cancelRender: false,
   waveformPeaks: null,
+  bpm: null,
+  bpmStatus: "idle",
+  bpmAnalysisId: 0,
 };
 
 const els = {
@@ -29,6 +32,7 @@ const els = {
   metaName: document.querySelector("#meta-name"),
   metaDuration: document.querySelector("#meta-duration"),
   metaRate: document.querySelector("#meta-rate"),
+  metaBpm: document.querySelector("#meta-bpm"),
   metaSize: document.querySelector("#meta-size"),
   transportDuration: document.querySelector("#transport-duration"),
   canvas: document.querySelector("#waveform"),
@@ -75,6 +79,9 @@ const youtubeHosts = new Set([
 
 const previewLimitSeconds = 30;
 const maxRecommendedSeconds = 30 * 60;
+const bpmAnalysisSeconds = 180;
+const bpmMin = 55;
+const bpmMax = 210;
 const analyticsKey = "audio-transposer-events-v1";
 
 function getAudioContext() {
@@ -121,6 +128,12 @@ function formatBytes(bytes) {
     unitIndex += 1;
   }
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatBpm() {
+  if (state.bpmStatus === "analyzing") return "Analyzing BPM...";
+  if (!Number.isFinite(state.bpm)) return "BPM --";
+  return `~${Math.round(state.bpm)} BPM`;
 }
 
 function cleanName(name) {
@@ -280,6 +293,7 @@ function updateMeta() {
     els.metaName.textContent = "No source loaded";
     els.metaDuration.textContent = "--";
     els.metaRate.textContent = "--";
+    els.metaBpm.textContent = "BPM --";
     els.metaSize.textContent = "--";
     if (els.transportDuration) els.transportDuration.textContent = "--";
     return;
@@ -288,8 +302,123 @@ function updateMeta() {
   els.metaName.textContent = state.sourceName;
   els.metaDuration.textContent = formatDuration(state.audioBuffer.duration);
   els.metaRate.textContent = `${state.audioBuffer.sampleRate.toLocaleString()} Hz`;
+  els.metaBpm.textContent = formatBpm();
   els.metaSize.textContent = formatBytes(state.sourceSize);
   if (els.transportDuration) els.transportDuration.textContent = formatDuration(state.audioBuffer.duration);
+}
+
+async function buildOnsetEnvelope(buffer) {
+  const sampleRate = buffer.sampleRate;
+  const frameSize = Math.max(1024, Math.round(sampleRate * 0.046));
+  const hopSize = Math.max(256, Math.round(sampleRate * 0.012));
+  const endFrame = Math.min(buffer.length, Math.floor(sampleRate * bpmAnalysisSeconds));
+  const channels = [buffer.getChannelData(0)];
+  if (buffer.numberOfChannels > 1) channels.push(buffer.getChannelData(1));
+  const energy = [];
+
+  for (let frameStart = 0; frameStart + frameSize < endFrame; frameStart += hopSize) {
+    let sum = 0;
+    let count = 0;
+    for (let offset = 0; offset < frameSize; offset += 2) {
+      let sample = 0;
+      channels.forEach((channel) => {
+        sample += channel[frameStart + offset] || 0;
+      });
+      sample /= channels.length;
+      sum += sample * sample;
+      count += 1;
+    }
+    energy.push(Math.sqrt(sum / Math.max(1, count)));
+    if (energy.length % 512 === 0) await yieldToUI();
+  }
+
+  if (energy.length < 32) return null;
+
+  const envelope = new Float32Array(energy.length);
+  let noveltyTotal = 0;
+  for (let i = 1; i < energy.length; i += 1) {
+    const novelty = Math.max(0, energy[i] - energy[i - 1]);
+    envelope[i] = novelty;
+    noveltyTotal += novelty;
+  }
+
+  const mean = noveltyTotal / envelope.length;
+  if (mean <= 0.000001) return null;
+
+  for (let i = 0; i < envelope.length; i += 1) {
+    envelope[i] = Math.max(0, envelope[i] - mean * 1.2);
+  }
+
+  return {
+    envelope,
+    frameRate: sampleRate / hopSize,
+  };
+}
+
+function correlationForLag(envelope, lag) {
+  let score = 0;
+  let weight = 0;
+  for (let i = lag; i < envelope.length; i += 1) {
+    score += envelope[i] * envelope[i - lag];
+    weight += envelope[i] + envelope[i - lag];
+  }
+  return weight > 0 ? score / weight : 0;
+}
+
+async function estimateBpm(buffer) {
+  await yieldToUI();
+  const analysis = await buildOnsetEnvelope(buffer);
+  if (!analysis) return null;
+
+  const { envelope, frameRate } = analysis;
+  const minLag = Math.max(1, Math.floor((60 / bpmMax) * frameRate));
+  const maxLag = Math.min(envelope.length - 1, Math.ceil((60 / bpmMin) * frameRate));
+  let bestLag = 0;
+  let bestScore = 0;
+  let scoreTotal = 0;
+  let scoreCount = 0;
+
+  for (let lag = minLag; lag <= maxLag; lag += 1) {
+    const score =
+      correlationForLag(envelope, lag) +
+      correlationForLag(envelope, lag * 2) * 0.45 +
+      correlationForLag(envelope, Math.max(1, Math.round(lag / 2))) * 0.25;
+
+    scoreTotal += score;
+    scoreCount += 1;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestLag = lag;
+    }
+
+    if (lag % 20 === 0) await yieldToUI();
+  }
+
+  if (!bestLag) return null;
+  const averageScore = scoreTotal / Math.max(1, scoreCount);
+  if (bestScore < averageScore * 1.12) return null;
+
+  let bpm = (60 * frameRate) / bestLag;
+  while (bpm < 70) bpm *= 2;
+  while (bpm > 190) bpm /= 2;
+  return bpm;
+}
+
+async function analyzeBpm(buffer, analysisId) {
+  try {
+    const bpm = await estimateBpm(buffer);
+    if (analysisId !== state.bpmAnalysisId) return;
+    state.bpm = bpm;
+    state.bpmStatus = "complete";
+    updateMeta();
+  } catch (error) {
+    console.error(error);
+    if (analysisId !== state.bpmAnalysisId) return;
+    state.bpm = null;
+    state.bpmStatus = "complete";
+    updateMeta();
+  }
 }
 
 function updateControls() {
@@ -545,6 +674,10 @@ async function decodeBlob(blob, name, sourceUrl = "") {
   state.sourceName = name;
   state.sourceSize = blob.size;
   state.sourceUrl = sourceUrl;
+  state.bpm = null;
+  state.bpmStatus = "analyzing";
+  state.bpmAnalysisId += 1;
+  const bpmAnalysisId = state.bpmAnalysisId;
   state.exports.forEach((entry) => {
     if (entry.url) URL.revokeObjectURL(entry.url);
   });
@@ -562,6 +695,7 @@ async function decodeBlob(blob, name, sourceUrl = "") {
   renderExportList();
   drawWaveform();
   updateControls();
+  analyzeBpm(decoded, bpmAnalysisId);
 
   const lengthNote =
     decoded.duration > maxRecommendedSeconds

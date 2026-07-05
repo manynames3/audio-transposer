@@ -8,6 +8,7 @@ Live app: https://audio-transposer.pages.dev
 
 - Upload an audio or video file from your device.
 - Paste a direct audio/video file link, with a Cloudflare Pages Function fallback for links blocked by browser CORS.
+- Estimate BPM after decoding supported audio, including MP3 files.
 - Preview original vs transposed audio.
 - Choose semitone changes from `-12` to `+12`.
 - Export multiple semitone versions as WAV files.
@@ -77,6 +78,6 @@ The included GitHub Actions workflow can deploy by direct upload when manually r
 
 ## Project Notes
 
-The current audio engine uses browser-side Web Audio rendering with overlap-add time scaling so exported WAV files keep the selected trim duration. MP3 export is intentionally disabled until a licensed encoder is added.
+The current audio engine uses browser-side Web Audio rendering with overlap-add time scaling so exported WAV files keep the selected trim duration. BPM detection is an onset-based estimate from the decoded audio buffer. MP3 export is intentionally disabled until a licensed encoder is added.
 
 This project is intended for media you own or have permission to process.
