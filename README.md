@@ -1,25 +1,40 @@
 # Audio Transposer
 
-A static browser app for transposing authorized audio and downloading original or transposed versions.
+Browser-based audio transposition for authorized audio and video files.
 
-## What it does
+Live app: https://audio-transposer.pages.dev
 
-- Upload an audio/video file, or load a direct audio/video file link.
-- Give a clear upload path for authorized YouTube media exported from your own account.
+## What It Does
+
+- Upload an audio or video file from your device.
+- Paste a direct audio/video file link, with a Cloudflare Pages Function fallback for links blocked by browser CORS.
 - Preview original vs transposed audio.
-- Trim the export region and optionally loop a preview region.
-- Render batch semitone exports from `-12` to `+12`.
-- Normalize exported WAV files.
-- Download the original source file.
-- Re-download rendered `WAV` versions during the same browser session.
+- Choose semitone changes from `-12` to `+12`.
+- Export multiple semitone versions as WAV files.
+- Trim the export region and loop a preview region.
+- Normalize exported audio.
+- Re-download completed exports during the same browser session.
 
-Uploaded files are decoded and rendered locally in the browser. Pasted media file links may be fetched through the included Cloudflare Pages Function when the remote server does not allow browser CORS.
+Uploaded files are decoded and rendered locally in the browser. Pasted media links may be fetched through the included Cloudflare Pages Function so the browser can decode them.
 
-## Important media note
+## Supported Inputs
 
-This project is intentionally limited to media you own or have permission to process. YouTube watch URLs do not expose downloadable audio to browser JavaScript, and this app does not circumvent that. For authorized YouTube content, export media from your own account with YouTube Studio or Google Takeout, then upload the file here.
+Works well with:
 
-## Run locally
+- Local audio/video files such as MP3, WAV, M4A, AAC, OGG, WebM, and MP4.
+- Direct media file URLs such as `https://example.com/song.mp3`.
+- Direct media links that return `audio/*`, `video/*`, or file-like binary responses.
+
+Not supported as direct inputs:
+
+- YouTube watch links such as `https://youtube.com/watch?...`.
+- `youtu.be` share links.
+- Generic web pages that contain a player but are not themselves media files.
+- Private-network or localhost URLs.
+
+YouTube-style real-time playback transposition requires a different architecture, such as a browser extension or explicit live-capture workflow.
+
+## Run Locally
 
 ```bash
 npm run dev
@@ -27,36 +42,41 @@ npm run dev
 
 Open the URL printed by Wrangler.
 
-For a simple static preview without Cloudflare tooling:
+For a static-only preview without the link importer function:
 
 ```bash
 python3 -m http.server 8788
 ```
 
-## Deploy with Cloudflare Pages
+## Verify
 
-### Git integration
+```bash
+npm run check
+node --check functions/api/fetch-media.js
+```
 
-1. Push this folder to GitHub.
-2. In Cloudflare, open Workers & Pages.
-3. Create a Pages application and connect the GitHub repository.
-4. Use production branch `main`.
-5. Use build command `exit 0`.
-6. Use build output directory `public`.
+## Deploy
 
-### Direct upload
+Direct upload to Cloudflare Pages:
 
 ```bash
 npm run deploy
 ```
 
-The included GitHub Actions workflow can also deploy by direct upload when manually run after adding these repository secrets:
+Cloudflare Pages settings for Git integration:
+
+- Production branch: `main`
+- Build command: `exit 0`
+- Build output directory: `public`
+- Functions directory: `functions`
+
+The included GitHub Actions workflow can deploy by direct upload when manually run after adding these repository secrets:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_API_TOKEN`
 
-## Audio behavior
+## Project Notes
 
-The static app uses browser-side pitch shifting with overlap-add time scaling so exported WAV files keep the selected trim duration. It does not add a production DSP dependency yet. For studio-grade commercial quality, replace the browser-only engine with a licensed WebAssembly DSP package or backend audio processor.
+The current audio engine uses browser-side Web Audio rendering with overlap-add time scaling so exported WAV files keep the selected trim duration. MP3 export is intentionally disabled until a licensed encoder is added.
 
-MP3 export is intentionally disabled until a licensed encoder is added.
+This project is intended for media you own or have permission to process.
