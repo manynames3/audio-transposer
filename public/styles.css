@@ -230,7 +230,7 @@ svg {
   gap: 10px;
   align-items: center;
   min-height: 51px;
-  margin-bottom: 16px;
+  margin-bottom: 9px;
   padding: 6px 9px 6px 15px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -273,6 +273,29 @@ svg {
 
 .url-form input::placeholder {
   color: #9aa3ad;
+}
+
+.url-status {
+  margin: 0 0 14px;
+  padding: 10px 13px;
+  color: #4b5563;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--teal);
+  border-radius: 7px;
+  background: #fbfcfd;
+}
+
+.url-status:empty {
+  display: none;
+}
+
+.url-status.error {
+  color: #7a271a;
+  border-color: #fed7aa;
+  border-left-color: #f97316;
+  background: #fff7ed;
 }
 
 .button,

@@ -21,6 +21,7 @@ const state = {
 const els = {
   form: document.querySelector("#url-form"),
   url: document.querySelector("#source-url"),
+  urlStatus: document.querySelector("#url-status"),
   file: document.querySelector("#file-input"),
   dropZone: document.querySelector("#drop-zone"),
   message: document.querySelector("#message"),
@@ -167,6 +168,12 @@ function trackEvent(name, detail = {}) {
 function setMessage(text, tone = "") {
   els.message.textContent = text;
   els.message.className = `message ${tone}`.trim();
+}
+
+function setUrlStatus(text = "", tone = "") {
+  if (!els.urlStatus) return;
+  els.urlStatus.textContent = text;
+  els.urlStatus.className = `url-status ${tone}`.trim();
 }
 
 function showToast(text, tone = "") {
@@ -515,6 +522,7 @@ async function decodeBlob(blob, name, sourceUrl = "") {
 }
 
 async function loadFile(file) {
+  setUrlStatus();
   if (!file) return;
   if (!file.type.startsWith("audio/") && !file.type.startsWith("video/") && file.type !== "") {
     showToast("Choose an audio file, or a video file with an audio track.", "error");
@@ -533,21 +541,18 @@ async function loadFile(file) {
 
 async function loadUrl(value) {
   if (!value) {
-    showToast("Paste a direct audio URL or upload a file.", "error");
+    setUrlStatus("Paste a direct audio or video file URL, or upload a file.", "error");
     return;
   }
 
   if (isYouTubeUrl(value)) {
-    showToast(
-      "Upload an exported YouTube audio or video file instead. Use YouTube Studio or Google Takeout for media from your own account.",
-      "error",
-    );
+    setUrlStatus("YouTube watch links are not direct media files. Upload an audio/video file or use a direct file URL.", "error");
     trackEvent("url_load_error", { reason: "youtube_watch_url" });
     return;
   }
 
   try {
-    showToast("Fetching direct audio URL...");
+    setUrlStatus("Loading direct media URL...");
     const response = await fetch(value, { mode: "cors" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const blob = await response.blob();
@@ -558,9 +563,10 @@ async function loadUrl(value) {
     const url = new URL(value);
     const name = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "direct-audio");
     await decodeBlob(blob, name, value);
+    setUrlStatus();
   } catch (error) {
     console.error(error);
-    showToast("Could not load that URL. The server must provide a direct media file and allow browser CORS access.", "error");
+    setUrlStatus("That URL could not be loaded. Use a direct audio/video file URL from a server that allows browser access.", "error");
     trackEvent("url_load_error", { reason: "fetch_or_decode_failed" });
   }
 }
@@ -981,6 +987,9 @@ function attachEvents() {
   els.form.addEventListener("submit", (event) => {
     event.preventDefault();
     loadUrl(els.url.value.trim());
+  });
+  els.url.addEventListener("input", () => {
+    if (els.urlStatus?.textContent) setUrlStatus();
   });
 
   els.file.addEventListener("change", () => {
