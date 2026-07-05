@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="A browser-based audio transposer for authorized audio files and direct audio URLs."
+      content="Upload authorized audio, transpose it by semitone, and export tempo-preserved WAV versions in the browser."
     />
     <title>Audio Transposer</title>
     <link rel="stylesheet" href="./styles.css" />
@@ -25,56 +25,79 @@
             <small>Authorized media only</small>
           </span>
         </a>
-        <nav class="deploy-nav" aria-label="Project links">
-          <a href="https://github.com/manynames3/audio-transposer" rel="noreferrer">GitHub</a>
-          <a href="https://audio-transposer.pages.dev/" rel="noreferrer">Cloudflare Pages</a>
+        <nav class="top-actions" aria-label="App links">
+          <a href="#privacy">Privacy</a>
+          <a href="mailto:support@audio-transposer.app?subject=Audio%20Transposer%20Support">Support</a>
         </nav>
       </header>
 
-      <main class="workspace">
-        <section class="source-panel" aria-labelledby="source-title">
+      <main class="studio-grid">
+        <section class="panel source-panel" aria-labelledby="source-title">
           <div class="panel-heading">
             <div>
-              <h1 id="source-title">Source</h1>
-              <p>Paste a direct audio URL or upload exported media</p>
+              <h1 id="source-title">Start with audio</h1>
+              <p>Upload a file first. Direct audio URLs are secondary.</p>
             </div>
-            <span class="privacy-chip">Local processing</span>
+            <span class="status-pill">Local processing</span>
           </div>
-
-          <form class="url-form" id="url-form">
-            <label for="source-url">Direct audio URL</label>
-            <div class="input-row">
-              <input
-                id="source-url"
-                name="source-url"
-                type="url"
-                placeholder="Paste a media URL"
-                autocomplete="url"
-              />
-              <button class="icon-button primary" type="submit" title="Load direct audio URL">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h13M13 6l6 6-6 6" />
-                </svg>
-                <span>Load</span>
-              </button>
-            </div>
-            <p class="notice">
-              Use only media you own or have permission to process. For YouTube content, upload an
-              exported audio or video file from your own account.
-            </p>
-          </form>
 
           <div class="drop-zone" id="drop-zone">
             <input id="file-input" type="file" accept="audio/*,video/mp4,video/webm" />
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 16V4M7 9l5-5 5 5" />
-              <path d="M5 17.5v1A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-1" />
+              <path d="M5 18.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5" />
             </svg>
             <div>
-              <strong>Upload audio</strong>
-              <span>Drop an MP3, WAV, M4A, WebM, or MP4 file here</span>
+              <strong>Drop audio here to transpose</strong>
+              <span>or click to choose a file from this device</span>
             </div>
           </div>
+
+          <div class="source-guidance" aria-label="Supported import details">
+            <div>
+              <span>Formats</span>
+              <strong>MP3, WAV, M4A, AAC, OGG, WebM, MP4</strong>
+            </div>
+            <div>
+              <span>Recommended max</span>
+              <strong>30 minutes</strong>
+            </div>
+            <div>
+              <span>Privacy</span>
+              <strong>Audio stays in your browser</strong>
+            </div>
+          </div>
+
+          <details class="url-card">
+            <summary>
+              <span>Direct audio file URL</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </summary>
+            <form class="url-form" id="url-form">
+              <label for="source-url">CORS-enabled media file</label>
+              <div class="input-row">
+                <input
+                  id="source-url"
+                  name="source-url"
+                  type="url"
+                  placeholder="https://example.com/song.mp3"
+                  autocomplete="url"
+                />
+                <button class="button primary" type="submit" title="Load direct audio URL">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h13M13 6l6 6-6 6" />
+                  </svg>
+                  <span>Load</span>
+                </button>
+              </div>
+              <p>
+                YouTube watch links are not direct audio files. For your own YouTube media, export
+                the file first, then upload it here.
+              </p>
+            </form>
+          </details>
 
           <div class="source-meta" id="source-meta" aria-live="polite">
             <div>
@@ -89,114 +112,231 @@
               <span>Sample rate</span>
               <strong id="meta-rate">--</strong>
             </div>
+            <div>
+              <span>Size</span>
+              <strong id="meta-size">--</strong>
+            </div>
           </div>
 
           <div class="message" id="message" role="status" aria-live="polite"></div>
         </section>
 
-        <section class="work-panel" aria-labelledby="work-title">
-          <div class="panel-heading work-heading">
+        <section class="panel editor-panel" aria-labelledby="editor-title">
+          <div class="panel-heading editor-heading">
             <div>
-              <h2 id="work-title">Transpose</h2>
-              <p>Semitone shift is rendered as WAV for download</p>
+              <h2 id="editor-title">Transpose studio</h2>
+              <p>Fast A/B preview, tempo-preserved WAV export.</p>
             </div>
             <output class="semitone-readout" id="semitone-readout" for="semitones">0 st</output>
           </div>
 
           <div class="waveform-wrap">
-            <canvas id="waveform" width="1200" height="360" aria-label="Audio waveform"></canvas>
+            <canvas id="waveform" width="1400" height="430" aria-label="Audio waveform with trim, loop, and playhead"></canvas>
             <div class="empty-waveform" id="empty-waveform">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 13h2l2-7 4 14 4-10 2 3h2" />
               </svg>
-              <span>Load authorized audio to preview the waveform</span>
+              <strong>Drop audio here to transpose</strong>
+              <span>Waveform, trim, loop, and export controls unlock after upload.</span>
             </div>
           </div>
 
           <div class="transport">
-            <button class="round-button" id="preview-button" type="button" title="Preview selected transposition" disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path id="preview-icon" d="M8 5v14l11-7-11-7Z" />
-              </svg>
-              <span>Preview</span>
-            </button>
+            <div class="ab-preview" aria-label="A/B Preview">
+              <button class="button primary" id="preview-original" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 5v14l11-7-11-7Z" />
+                </svg>
+                <span>Original</span>
+              </button>
+              <button class="button primary" id="preview-transposed" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 5v14l11-7-11-7Z" />
+                </svg>
+                <span>Transposed</span>
+              </button>
+              <button class="button ghost" id="stop-preview" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7h10v10H7z" />
+                </svg>
+                <span>Stop</span>
+              </button>
+            </div>
             <div class="progress-group">
-              <label for="progress">Preview progress</label>
+              <div>
+                <label for="progress">A/B Preview</label>
+                <output id="playhead-time" for="progress">0:00</output>
+              </div>
               <progress id="progress" value="0" max="100"></progress>
             </div>
           </div>
 
-          <div class="transpose-control">
-            <div class="control-head">
-              <label for="semitones">Semitones</label>
-              <div class="stepper">
-                <button type="button" id="step-down" title="Transpose down one semitone">-</button>
-                <input id="semitone-number" type="number" min="-12" max="12" step="1" value="0" />
-                <button type="button" id="step-up" title="Transpose up one semitone">+</button>
+          <div class="control-grid">
+            <section class="control-block" aria-labelledby="pitch-title">
+              <div class="control-head">
+                <div>
+                  <h3 id="pitch-title">Semitone shift</h3>
+                  <p>Preview is capped at 30 seconds; export renders the selected trim.</p>
+                </div>
+                <div class="stepper" aria-label="Semitone stepper">
+                  <button type="button" id="step-down" title="Transpose down one semitone">-</button>
+                  <input id="semitone-number" type="number" min="-12" max="12" step="1" value="0" />
+                  <button type="button" id="step-up" title="Transpose up one semitone">+</button>
+                </div>
               </div>
-            </div>
-            <input id="semitones" type="range" min="-12" max="12" step="1" value="0" />
-            <div class="preset-grid" aria-label="Quick semitone presets">
-              <button type="button" data-preset="-12">-12</button>
-              <button type="button" data-preset="-7">-7</button>
-              <button type="button" data-preset="-5">-5</button>
-              <button type="button" data-preset="-2">-2</button>
-              <button type="button" data-preset="0">0</button>
-              <button type="button" data-preset="2">+2</button>
-              <button type="button" data-preset="5">+5</button>
-              <button type="button" data-preset="7">+7</button>
-              <button type="button" data-preset="12">+12</button>
+              <input id="semitones" type="range" min="-12" max="12" step="1" value="0" />
+              <div class="preset-grid" aria-label="Quick semitone presets">
+                <button type="button" data-preset="-12">-12</button>
+                <button type="button" data-preset="-7">-7</button>
+                <button type="button" data-preset="-5">-5</button>
+                <button type="button" data-preset="-2">-2</button>
+                <button type="button" data-preset="0">0</button>
+                <button type="button" data-preset="2">+2</button>
+                <button type="button" data-preset="5">+5</button>
+                <button type="button" data-preset="7">+7</button>
+                <button type="button" data-preset="12">+12</button>
+              </div>
+            </section>
+
+            <section class="control-block" aria-labelledby="region-title">
+              <div class="control-head stacked">
+                <div>
+                  <h3 id="region-title">Loop and trim</h3>
+                  <p>Trim controls export length. Loop controls A/B preview.</p>
+                </div>
+                <label class="toggle">
+                  <input id="loop-enabled" type="checkbox" disabled />
+                  <span>Loop</span>
+                </label>
+              </div>
+
+              <div class="range-pair">
+                <div>
+                  <label for="trim-start">Trim start</label>
+                  <output id="trim-start-label" for="trim-start">0:00</output>
+                  <input id="trim-start" type="range" min="0" max="1" step="0.1" value="0" disabled />
+                </div>
+                <div>
+                  <label for="trim-end">Trim end</label>
+                  <output id="trim-end-label" for="trim-end">0:00</output>
+                  <input id="trim-end" type="range" min="0" max="1" step="0.1" value="1" disabled />
+                </div>
+                <div>
+                  <label for="loop-start">Loop start</label>
+                  <output id="loop-start-label" for="loop-start">0:00</output>
+                  <input id="loop-start" type="range" min="0" max="1" step="0.1" value="0" disabled />
+                </div>
+                <div>
+                  <label for="loop-end">Loop end</label>
+                  <output id="loop-end-label" for="loop-end">0:00</output>
+                  <input id="loop-end" type="range" min="0" max="1" step="0.1" value="1" disabled />
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="panel export-panel" aria-labelledby="export-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="export-title">Export</h2>
+              <p>Batch render professional filenames.</p>
             </div>
           </div>
 
-          <div class="render-actions">
-            <button class="icon-button ghost" id="download-original" type="button" disabled>
+          <section class="export-section" aria-labelledby="batch-title">
+            <div class="section-title">
+              <h3 id="batch-title">Batch exports</h3>
+              <span id="estimate-count">1 file</span>
+            </div>
+            <div class="batch-grid" id="batch-grid" aria-label="Batch semitone selections">
+              <label><input type="checkbox" value="-12" /> -12</label>
+              <label><input type="checkbox" value="-7" /> -7</label>
+              <label><input type="checkbox" value="-5" /> -5</label>
+              <label><input type="checkbox" value="-2" /> -2</label>
+              <label><input type="checkbox" value="0" checked /> 0</label>
+              <label><input type="checkbox" value="2" /> +2</label>
+              <label><input type="checkbox" value="5" /> +5</label>
+              <label><input type="checkbox" value="7" /> +7</label>
+              <label><input type="checkbox" value="12" /> +12</label>
+            </div>
+          </section>
+
+          <section class="export-section">
+            <div class="option-row">
+              <label class="toggle">
+                <input id="normalize" type="checkbox" checked />
+                <span>Normalize</span>
+              </label>
+              <span>Peak target -0.5 dB</span>
+            </div>
+            <div class="option-row disabled-row">
+              <span>MP3 export</span>
+              <span>Requires licensed encoder</span>
+            </div>
+          </section>
+
+          <section class="estimate-card" aria-labelledby="estimate-title">
+            <h3 id="estimate-title">Estimate</h3>
+            <dl>
+              <div>
+                <dt>Trimmed length</dt>
+                <dd id="estimate-duration">--</dd>
+              </div>
+              <div>
+                <dt>WAV size</dt>
+                <dd id="estimate-size">--</dd>
+              </div>
+            </dl>
+          </section>
+
+          <div class="export-actions">
+            <button class="button ghost" id="download-original" type="button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 3v12M7 10l5 5 5-5" />
                 <path d="M5 20h14" />
               </svg>
               <span>Download original</span>
             </button>
-            <button class="icon-button primary" id="render-current" type="button" disabled>
+            <button class="button primary" id="render-batch" type="button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 3v12M7 10l5 5 5-5" />
                 <path d="M4 20h16" />
               </svg>
-              <span>Download transposed WAV</span>
+              <span>Export WAV</span>
+            </button>
+            <button class="button danger" id="cancel-render" type="button" hidden>
+              <span>Cancel render</span>
             </button>
           </div>
-        </section>
 
-        <aside class="export-panel" aria-labelledby="export-title">
-          <div class="panel-heading">
-            <div>
-              <h2 id="export-title">Versions</h2>
-              <p>Render one semitone value at a time</p>
+          <section class="queue-section" aria-labelledby="queue-title">
+            <div class="section-title">
+              <h3 id="queue-title">Export queue</h3>
+              <button id="clear-exports" type="button" disabled>Clear</button>
             </div>
-          </div>
-
-          <div class="version-list" id="version-list">
-            <div class="empty-list">
-              <span>No exports yet</span>
-              <small>Choose a semitone shift and render a WAV.</small>
+            <div class="version-list" id="version-list">
+              <div class="empty-list">
+                <span>No exports yet</span>
+                <small>Select semitones and export WAV files.</small>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div class="details">
-            <h3>Output behavior</h3>
-            <p>
-              Transposition uses browser-native resampling. Higher keys play shorter; lower keys
-              play longer. For tempo-preserving pitch shifting, connect this UI to a licensed audio
-              DSP service.
-            </p>
-          </div>
-
-          <div class="details">
-            <h3>Deploy</h3>
-            <p>Deploy: GitHub + Cloudflare Pages. Static assets only, no server required.</p>
-          </div>
+          <section class="trust-panel" id="privacy" aria-labelledby="trust-title">
+            <h3 id="trust-title">Trust notes</h3>
+            <ul>
+              <li>Audio stays in your browser unless you fetch a direct URL.</li>
+              <li>Use only media you own or have permission to process.</li>
+              <li>Best in current Chrome, Edge, Safari, and Firefox.</li>
+              <li>Privacy-safe event counters track page views and errors only.</li>
+            </ul>
+            <p>Future paid path: Stripe Payment Link plus license key Worker, no login required.</p>
+          </section>
         </aside>
       </main>
+
+      <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
     </div>
 
     <script src="./app.js" type="module"></script>

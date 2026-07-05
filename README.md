@@ -6,9 +6,12 @@ A static browser app for transposing authorized audio and downloading original o
 
 - Upload an audio/video file, or load a CORS-enabled direct audio URL.
 - Give a clear upload path for authorized YouTube media exported from your own account.
-- Preview semitone changes from `-12` to `+12`.
+- Preview original vs transposed audio.
+- Trim the export region and optionally loop a preview region.
+- Render batch semitone exports from `-12` to `+12`.
+- Normalize exported WAV files.
 - Download the original source file.
-- Render and download transposed `WAV` versions in the browser.
+- Re-download rendered `WAV` versions during the same browser session.
 
 All decoding and rendering happens locally in the browser. No source audio is uploaded to a server.
 
@@ -54,4 +57,6 @@ The included GitHub Actions workflow can also deploy by direct upload when manua
 
 ## Audio behavior
 
-The static app uses browser-native resampling. That changes pitch and duration together: higher semitone values create shorter files, lower semitone values create longer files. For production-grade tempo-preserving pitch shifting, connect this UI to a licensed DSP backend or WebAssembly audio engine.
+The static app uses browser-side pitch shifting with overlap-add time scaling so exported WAV files keep the selected trim duration. It does not add a production DSP dependency yet. For studio-grade commercial quality, replace the browser-only engine with a licensed WebAssembly DSP package or backend audio processor.
+
+MP3 export is intentionally disabled until a licensed encoder is added.
