@@ -39,7 +39,7 @@ python3 -m http.server 8788
 3. Create a Pages application and connect the GitHub repository.
 4. Use production branch `main`.
 5. Use build command `exit 0`.
-6. Use build output directory `/`.
+6. Use build output directory `public`.
 
 ### Direct upload
 
