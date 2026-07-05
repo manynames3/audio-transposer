@@ -1,0 +1,17 @@
+{
+  "name": "audio-transposer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static browser app for transposing authorized audio files and direct audio URLs.",
+  "scripts": {
+    "dev": "wrangler pages dev . --compatibility-date=2026-07-05",
+    "deploy": "wrangler pages deploy . --project-name audio-transposer",
+    "check": "node --check app.js"
+  },
+  "keywords": [
+    "audio",
+    "transpose",
+    "cloudflare-pages"
+  ],
+  "license": "UNLICENSED"
+}

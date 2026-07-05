@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A browser-based audio transposer for authorized audio files and direct audio URLs."
+    />
+    <title>Audio Transposer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="Audio Transposer home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M5 15.2V8.8c0-.8.9-1.3 1.6-.9l5.5 3.2c.7.4.7 1.4 0 1.8l-5.5 3.2c-.7.4-1.6-.1-1.6-.9Z" />
+              <path d="M14.4 7.2v9.6M18.8 5.6v12.8" />
+            </svg>
+          </span>
+          <span>
+            <strong>Audio Transposer</strong>
+            <small>Authorized media only</small>
+          </span>
+        </a>
+        <nav class="deploy-nav" aria-label="Project links">
+          <a href="https://github.com/manynames3/audio-transposer" rel="noreferrer">GitHub</a>
+          <a href="https://pages.cloudflare.com/" rel="noreferrer">Cloudflare Pages</a>
+        </nav>
+      </header>
+
+      <main class="workspace">
+        <section class="source-panel" aria-labelledby="source-title">
+          <div class="panel-heading">
+            <div>
+              <h1 id="source-title">Source</h1>
+              <p>Paste a YouTube or direct audio URL</p>
+            </div>
+            <span class="privacy-chip">Local processing</span>
+          </div>
+
+          <form class="url-form" id="url-form">
+            <label for="source-url">Media URL</label>
+            <div class="input-row">
+              <input
+                id="source-url"
+                name="source-url"
+                type="url"
+                placeholder="Paste a media URL"
+                autocomplete="url"
+              />
+              <button class="icon-button primary" type="submit" title="Load direct audio URL">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h13M13 6l6 6-6 6" />
+                </svg>
+                <span>Load</span>
+              </button>
+            </div>
+            <p class="notice">
+              Use only media you own or have permission to process. YouTube pages are recognized,
+              but this app does not bypass download restrictions.
+            </p>
+          </form>
+
+          <div class="drop-zone" id="drop-zone">
+            <input id="file-input" type="file" accept="audio/*,video/mp4,video/webm" />
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 16V4M7 9l5-5 5 5" />
+              <path d="M5 17.5v1A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-1" />
+            </svg>
+            <div>
+              <strong>Upload audio</strong>
+              <span>Drop an MP3, WAV, M4A, WebM, or MP4 file here</span>
+            </div>
+          </div>
+
+          <div class="source-meta" id="source-meta" aria-live="polite">
+            <div>
+              <span>File</span>
+              <strong id="meta-name">No source loaded</strong>
+            </div>
+            <div>
+              <span>Duration</span>
+              <strong id="meta-duration">--</strong>
+            </div>
+            <div>
+              <span>Sample rate</span>
+              <strong id="meta-rate">--</strong>
+            </div>
+          </div>
+
+          <div class="message" id="message" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="work-panel" aria-labelledby="work-title">
+          <div class="panel-heading work-heading">
+            <div>
+              <h2 id="work-title">Transpose</h2>
+              <p>Semitone shift is rendered as WAV for download</p>
+            </div>
+            <output class="semitone-readout" id="semitone-readout" for="semitones">0 st</output>
+          </div>
+
+          <div class="waveform-wrap">
+            <canvas id="waveform" width="1200" height="360" aria-label="Audio waveform"></canvas>
+            <div class="empty-waveform" id="empty-waveform">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 13h2l2-7 4 14 4-10 2 3h2" />
+              </svg>
+              <span>Load authorized audio to preview the waveform</span>
+            </div>
+          </div>
+
+          <div class="transport">
+            <button class="round-button" id="preview-button" type="button" title="Preview selected transposition" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path id="preview-icon" d="M8 5v14l11-7-11-7Z" />
+              </svg>
+              <span>Preview</span>
+            </button>
+            <div class="progress-group">
+              <label for="progress">Preview progress</label>
+              <progress id="progress" value="0" max="100"></progress>
+            </div>
+          </div>
+
+          <div class="transpose-control">
+            <div class="control-head">
+              <label for="semitones">Semitones</label>
+              <div class="stepper">
+                <button type="button" id="step-down" title="Transpose down one semitone">-</button>
+                <input id="semitone-number" type="number" min="-12" max="12" step="1" value="0" />
+                <button type="button" id="step-up" title="Transpose up one semitone">+</button>
+              </div>
+            </div>
+            <input id="semitones" type="range" min="-12" max="12" step="1" value="0" />
+            <div class="preset-grid" aria-label="Quick semitone presets">
+              <button type="button" data-preset="-12">-12</button>
+              <button type="button" data-preset="-7">-7</button>
+              <button type="button" data-preset="-5">-5</button>
+              <button type="button" data-preset="-2">-2</button>
+              <button type="button" data-preset="0">0</button>
+              <button type="button" data-preset="2">+2</button>
+              <button type="button" data-preset="5">+5</button>
+              <button type="button" data-preset="7">+7</button>
+              <button type="button" data-preset="12">+12</button>
+            </div>
+          </div>
+
+          <div class="render-actions">
+            <button class="icon-button ghost" id="download-original" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5" />
+                <path d="M5 20h14" />
+              </svg>
+              <span>Download original</span>
+            </button>
+            <button class="icon-button primary" id="render-current" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5" />
+                <path d="M4 20h16" />
+              </svg>
+              <span>Download transposed WAV</span>
+            </button>
+          </div>
+        </section>
+
+        <aside class="export-panel" aria-labelledby="export-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="export-title">Versions</h2>
+              <p>Render one semitone value at a time</p>
+            </div>
+          </div>
+
+          <div class="version-list" id="version-list">
+            <div class="empty-list">
+              <span>No exports yet</span>
+              <small>Choose a semitone shift and render a WAV.</small>
+            </div>
+          </div>
+
+          <div class="details">
+            <h3>Output behavior</h3>
+            <p>
+              Transposition uses browser-native resampling. Higher keys play shorter; lower keys
+              play longer. For tempo-preserving pitch shifting, connect this UI to a licensed audio
+              DSP service.
+            </p>
+          </div>
+
+          <div class="details">
+            <h3>Deploy</h3>
+            <p>Deploy: GitHub + Cloudflare Pages. Static assets only, no server required.</p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
