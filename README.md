@@ -4,8 +4,8 @@ A static browser app for transposing authorized audio and downloading original o
 
 ## What it does
 
-- Upload an audio file, or load a CORS-enabled direct audio URL.
-- Recognize YouTube URLs without bypassing YouTube download restrictions.
+- Upload an audio/video file, or load a CORS-enabled direct audio URL.
+- Give a clear upload path for authorized YouTube media exported from your own account.
 - Preview semitone changes from `-12` to `+12`.
 - Download the original source file.
 - Render and download transposed `WAV` versions in the browser.
@@ -14,7 +14,7 @@ All decoding and rendering happens locally in the browser. No source audio is up
 
 ## Important media note
 
-This project is intentionally limited to media you own or have permission to process. YouTube watch URLs do not expose downloadable audio to browser JavaScript, and this app does not circumvent that. For authorized YouTube content, export your own media from YouTube Studio or Google Takeout, then upload the file here.
+This project is intentionally limited to media you own or have permission to process. YouTube watch URLs do not expose downloadable audio to browser JavaScript, and this app does not circumvent that. For authorized YouTube content, export media from your own account with YouTube Studio or Google Takeout, then upload the file here.
 
 ## Run locally
 

@@ -171,7 +171,7 @@ async function loadUrl(value) {
 
   if (isYouTubeUrl(value)) {
     setMessage(
-      "YouTube URL recognized. This static app does not extract YouTube audio. Export media you own from YouTube Studio or Google Takeout, then upload it here.",
+      "Upload an exported YouTube audio or video file instead. Use YouTube Studio or Google Takeout for media from your own account.",
       "error",
     );
     return;
