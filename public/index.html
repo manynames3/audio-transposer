@@ -13,7 +13,7 @@
     <title>Audio Transposer</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260705-1600" />
+    <link rel="stylesheet" href="./styles.css?v=20260728-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -62,7 +62,7 @@
             <div class="drop-copy">
               <strong>Drop audio here to transpose</strong>
               <span>or click to browse files</span>
-              <small>MP3, WAV, M4A, AAC, OGG, WebM, MP4 <b>•</b> Recommended max: 30 minutes</small>
+              <small>MP3, WAV, M4A, AAC, OGG, WebM, MP4 <b>•</b> Up to 500 MB <b>•</b> 30 minutes recommended</small>
             </div>
           </div>
 
@@ -72,7 +72,7 @@
                 <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
                 <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
               </svg>
-              <label for="source-url">Audio/video file link</label>
+              <label for="source-url">Direct audio/video link</label>
             </div>
             <input
               id="source-url"
@@ -82,7 +82,9 @@
               autocomplete="url"
               aria-describedby="url-status"
             />
-            <button class="button outline" type="submit">Load</button>
+            <button class="button outline load-button" id="load-button" type="submit">
+              <span id="load-button-label">Load</span>
+            </button>
           </form>
           <p class="url-status" id="url-status" role="status" aria-live="polite"></p>
 
@@ -113,12 +115,40 @@
                 <span id="meta-bpm">BPM --</span>
                 <span id="meta-size">70.2 MB</span>
               </div>
+              <div class="source-actions" hidden>
+                <button class="source-action" id="replace-source" type="button" title="Choose a different source file">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 16V4M7 9l5-5 5 5" />
+                    <path d="M5 14v5h14v-5" />
+                  </svg>
+                  <span>Replace</span>
+                </button>
+                <button class="source-action" id="download-original" type="button" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v12M7 11l5 5 5-5" />
+                    <path d="M5 20h14" />
+                  </svg>
+                  <span>Original</span>
+                </button>
+              </div>
             </header>
 
             <div class="wave-time-axis" id="wave-time-axis" aria-hidden="true"></div>
 
             <div class="waveform-wrap">
-              <canvas id="waveform" width="1400" height="260" aria-label="Audio waveform with trim, loop, and playhead"></canvas>
+              <canvas
+                id="waveform"
+                width="1400"
+                height="260"
+                role="slider"
+                tabindex="0"
+                aria-label="Waveform playhead"
+                aria-valuemin="0"
+                aria-valuemax="0"
+                aria-valuenow="0"
+                aria-valuetext="No audio loaded"
+                aria-disabled="true"
+              ></canvas>
               <div class="empty-waveform" id="empty-waveform">
                 <svg viewBox="0 0 80 64" aria-hidden="true">
                   <path d="M24 48H18a14 14 0 0 1-1.5-27.9A20 20 0 0 1 55 18a16 16 0 0 1 3 31h-6" />
@@ -259,6 +289,13 @@
                 <button class="button light" type="button" data-preset="0">Reset</button>
                 <input id="semitone-number" type="number" min="-12" max="12" step="1" value="0" aria-label="Semitone value" />
               </div>
+              <button class="current-export" id="render-current" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v12M7 10l5 5 5-5" />
+                  <path d="M4 20h16" />
+                </svg>
+                <span id="current-export-label">Export 0 st WAV</span>
+              </button>
             </div>
 
             <div class="preset-card">
@@ -324,18 +361,32 @@
               <path d="M7 11V8a5 5 0 0 1 10 0v3" />
               <path d="M6 11h12v10H6z" />
             </svg>
-            <strong>Audio stays in your browser</strong>
-            <span>No uploads</span>
+            <strong>Uploaded files stay in your browser</strong>
+            <span>Local processing</span>
             <span>No data stored</span>
-            <span>Your files never leave this device</span>
+            <span>Direct links may use a secure relay</span>
           </footer>
 
           <div class="message" id="message" role="status" aria-live="polite"></div>
         </section>
 
-        <aside class="export-panel" aria-labelledby="batch-title">
+        <aside class="export-panel" id="export-panel" aria-labelledby="batch-title" aria-hidden="false">
+          <header class="mobile-export-header">
+            <div>
+              <strong>Export versions</strong>
+              <span id="mobile-sheet-summary">3 selected</span>
+            </div>
+            <button class="sheet-close" id="close-export-panel" type="button" aria-label="Close export options">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </header>
           <section class="rail-section batch-section">
-            <h2 id="batch-title">Batch exports</h2>
+            <div class="batch-heading">
+              <h2 id="batch-title">Batch exports</h2>
+              <button id="clear-batch-selection" type="button">Clear selection</button>
+            </div>
             <p>Choose semitone values to export</p>
             <div class="batch-grid" id="batch-grid" aria-label="Batch semitone selections">
               <label><input type="checkbox" value="-12" /> <span>-12</span></label>
@@ -378,16 +429,17 @@
                 <path d="M12 3v12M7 10l5 5 5-5" />
                 <path d="M4 20h16" />
               </svg>
-              <span>Export WAV</span>
+              <span id="batch-export-label">Export 3 WAVs</span>
             </button>
             <button class="cancel-button" id="cancel-render" type="button" hidden>Cancel render</button>
+            <p class="estimate-warning" id="estimate-warning" role="status"></p>
             <p class="mp3-note">MP3 export requires licensed encoder <span>?</span></p>
           </section>
 
           <section class="rail-section queue-section" aria-labelledby="queue-title">
             <div class="rail-heading">
               <h2 id="queue-title">Export queue</h2>
-              <button id="clear-exports" type="button" disabled>Clear completed</button>
+              <button id="clear-exports" type="button" disabled>Clear queue</button>
             </div>
             <div class="version-list" id="version-list">
               <div class="empty-list">
@@ -404,8 +456,8 @@
                 <path d="m8 12 3 3 5-6" />
               </svg>
               <div>
-                <strong>Audio stays in your browser</strong>
-                <span>We process everything locally on your device.</span>
+                <strong>Uploads stay in your browser</strong>
+                <span>Files selected from your device are processed locally.</span>
               </div>
             </div>
             <div class="trust-item">
@@ -449,10 +501,28 @@
         </aside>
       </main>
 
-      <button class="hidden-download" id="download-original" type="button" disabled>Download original</button>
+      <div class="mobile-export-backdrop" id="mobile-export-backdrop" hidden></div>
+      <nav class="mobile-action-bar" id="mobile-action-bar" aria-label="Export actions" hidden>
+        <button class="mobile-versions-button" id="open-export-panel" type="button" aria-controls="export-panel" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 7h14M5 12h14M5 17h14" />
+          </svg>
+          <span>
+            <strong>Versions</strong>
+            <small id="mobile-export-summary">3 selected</small>
+          </span>
+        </button>
+        <button class="mobile-current-export" id="mobile-render-current" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12M7 10l5 5 5-5" />
+            <path d="M4 20h16" />
+          </svg>
+          <span id="mobile-current-export-label">Export 0 st</span>
+        </button>
+      </nav>
       <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
     </div>
 
-    <script src="./app.js?v=20260705-1600" type="module"></script>
+    <script src="./app.js?v=20260728-1" type="module"></script>
   </body>
 </html>

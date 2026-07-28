@@ -2,9 +2,16 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https:; img-src 'self' data:; media-src 'self' blob:; script-src 'self'; style-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
 
 /app.js
   Cache-Control: public, max-age=0, must-revalidate
 
 /styles.css
   Cache-Control: public, max-age=0, must-revalidate
+
+/audio-utils.mjs
+  Cache-Control: public, max-age=0, must-revalidate
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate

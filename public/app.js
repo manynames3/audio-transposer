@@ -1,3 +1,18 @@
+import {
+  encodeWav,
+  exportFileName,
+  formatAxisTime,
+  formatBytes,
+  formatChannels,
+  formatDuration,
+  formatPreciseTime,
+  formatPreviewTimestamp,
+  formatSemitone,
+  normalizeChannels,
+  ratioFor,
+  resampleLinear,
+} from "./audio-utils.mjs?v=20260728-1";
+
 const state = {
   audioContext: null,
   audioBuffer: null,
@@ -15,8 +30,12 @@ const state = {
   playheadSeconds: 0,
   animationFrame: 0,
   isPlaying: false,
+  isLoading: false,
   isRendering: false,
   cancelRender: false,
+  loadToken: 0,
+  loadAbortController: null,
+  mobileSheetOpen: false,
   waveformPeaks: null,
   waveformPeaksKey: "",
   bpm: null,
@@ -32,9 +51,15 @@ const state = {
 const els = {
   form: document.querySelector("#url-form"),
   url: document.querySelector("#source-url"),
+  loadButton: document.querySelector("#load-button"),
+  loadButtonLabel: document.querySelector("#load-button-label"),
   urlStatus: document.querySelector("#url-status"),
   file: document.querySelector("#file-input"),
+  replaceSource: document.querySelector("#replace-source"),
+  sourceActions: document.querySelector(".source-actions"),
   dropZone: document.querySelector("#drop-zone"),
+  workspace: document.querySelector(".workspace-main"),
+  topbar: document.querySelector(".topbar"),
   message: document.querySelector("#message"),
   toastRegion: document.querySelector("#toast-region"),
   metaName: document.querySelector("#meta-name"),
@@ -84,10 +109,24 @@ const els = {
   estimateDuration: document.querySelector("#estimate-duration"),
   estimateSize: document.querySelector("#estimate-size"),
   downloadOriginal: document.querySelector("#download-original"),
+  renderCurrent: document.querySelector("#render-current"),
+  currentExportLabel: document.querySelector("#current-export-label"),
   renderBatch: document.querySelector("#render-batch"),
+  batchExportLabel: document.querySelector("#batch-export-label"),
   cancelRender: document.querySelector("#cancel-render"),
+  clearBatchSelection: document.querySelector("#clear-batch-selection"),
   clearExports: document.querySelector("#clear-exports"),
   versionList: document.querySelector("#version-list"),
+  estimateWarning: document.querySelector("#estimate-warning"),
+  exportPanel: document.querySelector("#export-panel"),
+  openExportPanel: document.querySelector("#open-export-panel"),
+  closeExportPanel: document.querySelector("#close-export-panel"),
+  mobileExportBackdrop: document.querySelector("#mobile-export-backdrop"),
+  mobileActionBar: document.querySelector("#mobile-action-bar"),
+  mobileExportSummary: document.querySelector("#mobile-export-summary"),
+  mobileSheetSummary: document.querySelector("#mobile-sheet-summary"),
+  mobileRenderCurrent: document.querySelector("#mobile-render-current"),
+  mobileCurrentExportLabel: document.querySelector("#mobile-current-export-label"),
 };
 
 const youtubeHosts = new Set([
@@ -101,6 +140,9 @@ const youtubeHosts = new Set([
 
 const previewLimitSeconds = 30;
 const maxRecommendedSeconds = 30 * 60;
+const maxSourceBytes = 500 * 1024 * 1024;
+const maxMobileRenderBytes = 1.25 * 1024 * 1024 * 1024;
+const maxDesktopRenderBytes = 3 * 1024 * 1024 * 1024;
 const bpmAnalysisSeconds = 180;
 const bpmMin = 55;
 const bpmMax = 210;
@@ -117,81 +159,14 @@ function semitones() {
   return Number(els.semitoneRange.value);
 }
 
-function ratioFor(semitoneValue) {
-  return Math.pow(2, semitoneValue / 12);
-}
-
-function formatSemitone(value) {
-  const numeric = Number(value);
-  return `${numeric > 0 ? "+" : ""}${numeric}`;
-}
-
-function formatDuration(seconds) {
-  if (!Number.isFinite(seconds)) return "--";
-  const total = Math.max(0, Math.round(seconds));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${mins}:${String(secs).padStart(2, "0")}`;
-}
-
-function formatAxisTime(seconds) {
-  if (!Number.isFinite(seconds)) return "--";
-  if (seconds < 60) return `0:${String(Math.round(seconds)).padStart(2, "0")}`;
-  return formatDuration(seconds);
-}
-
-function formatPreciseTime(seconds) {
-  if (!Number.isFinite(seconds)) return "--";
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  return formatDuration(seconds);
-}
-
-function formatPreviewTimestamp(seconds) {
-  if (!Number.isFinite(seconds)) return "--";
-  const totalMs = Math.max(0, Math.round(seconds * 1000));
-  const mins = Math.floor(totalMs / 60000);
-  const secs = Math.floor((totalMs % 60000) / 1000);
-  const ms = totalMs % 1000;
-  return `${mins}:${String(secs).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
-}
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return "--";
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
 function formatBpm() {
   if (state.bpmStatus === "analyzing") return "Analyzing BPM...";
   if (!Number.isFinite(state.bpm)) return "BPM --";
   return `~${Math.round(state.bpm)} BPM`;
 }
 
-function formatChannels(count) {
-  if (!Number.isFinite(count) || count <= 0) return "--";
-  if (count === 1) return "Mono";
-  if (count === 2) return "Stereo";
-  return `${count} channels`;
-}
-
-function cleanName(name) {
-  const base = name.replace(/\.[^/.]+$/, "");
-  return base.replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "audio";
-}
-
 function fileNameFor(semitoneValue) {
-  const base = cleanName(state.sourceName || "audio");
-  const suffix =
-    semitoneValue === 0
-      ? "original"
-      : `${semitoneValue > 0 ? "plus" : "minus"}-${Math.abs(semitoneValue)}st`;
-  return `${base}_${suffix}.wav`;
+  return exportFileName(state.sourceName || "audio", semitoneValue);
 }
 
 function yieldToUI() {
@@ -244,6 +219,71 @@ function showToast(text, tone = "") {
   }, 5200);
 }
 
+function isMobileLayout() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function beginSourceLoad(message) {
+  stopPreviewAt(state.playheadSeconds);
+  state.loadToken += 1;
+  state.loadAbortController?.abort();
+  state.loadAbortController = new AbortController();
+  state.isLoading = true;
+  showToast(message);
+  updateControls();
+  return {
+    id: state.loadToken,
+    signal: state.loadAbortController.signal,
+  };
+}
+
+function finishSourceLoad(loadId) {
+  if (loadId !== state.loadToken) return;
+  state.isLoading = false;
+  state.loadAbortController = null;
+  if (els.file) els.file.value = "";
+  updateControls();
+}
+
+function assertSourceSize(size) {
+  if (!Number.isFinite(size) || size <= 0) {
+    throw new Error("That source file is empty.");
+  }
+  if (size > maxSourceBytes) {
+    throw new Error("That file is larger than the 500 MB browser limit.");
+  }
+}
+
+function setMobileSheet(open, restoreFocus = false) {
+  const mobile = isMobileLayout();
+  if (!mobile) open = false;
+  state.mobileSheetOpen = open;
+  els.exportPanel.classList.toggle("is-mobile-open", open);
+  els.exportPanel.setAttribute("aria-hidden", String(mobile && !open));
+  if (mobile && !open) els.exportPanel.setAttribute("inert", "");
+  else els.exportPanel.removeAttribute("inert");
+  [els.topbar, els.workspace, els.mobileActionBar].forEach((element) => {
+    if (mobile && open) element.setAttribute("inert", "");
+    else element.removeAttribute("inert");
+  });
+  if (mobile) {
+    els.exportPanel.setAttribute("role", "dialog");
+    els.exportPanel.setAttribute("aria-modal", String(open));
+  } else {
+    els.exportPanel.removeAttribute("role");
+    els.exportPanel.removeAttribute("aria-modal");
+  }
+  els.openExportPanel.setAttribute("aria-expanded", String(open));
+  els.mobileExportBackdrop.hidden = !open;
+  document.body.classList.toggle("mobile-sheet-open", open);
+
+  if (open) {
+    window.setTimeout(() => els.closeExportPanel.focus(), 200);
+  } else if (restoreFocus && isMobileLayout()) {
+    window.requestAnimationFrame(() => els.openExportPanel.focus());
+  }
+}
+
 function isYouTubeUrl(value) {
   try {
     const url = new URL(value);
@@ -272,10 +312,13 @@ function blobLooksLikeMedia(blob, response) {
   );
 }
 
-async function fetchDirectMediaUrl(value) {
-  const response = await fetch(value, { mode: "cors" });
+async function fetchDirectMediaUrl(value, signal) {
+  const response = await fetch(value, { mode: "cors", signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const contentLength = Number(response.headers.get("content-length") || "0");
+  if (contentLength) assertSourceSize(contentLength);
   const blob = await response.blob();
+  assertSourceSize(blob.size);
   if (!blobLooksLikeMedia(blob, response)) throw new Error("URL did not return media");
   return {
     blob,
@@ -283,8 +326,8 @@ async function fetchDirectMediaUrl(value) {
   };
 }
 
-async function fetchProxiedMediaUrl(value) {
-  const response = await fetch(`/api/fetch-media?url=${encodeURIComponent(value)}`);
+async function fetchProxiedMediaUrl(value, signal) {
+  const response = await fetch(`/api/fetch-media?url=${encodeURIComponent(value)}`, { signal });
   if (!response.ok) {
     let message = "That link could not be loaded as media.";
     try {
@@ -295,7 +338,10 @@ async function fetchProxiedMediaUrl(value) {
     }
     throw new Error(message);
   }
+  const contentLength = Number(response.headers.get("content-length") || "0");
+  if (contentLength) assertSourceSize(contentLength);
   const blob = await response.blob();
+  assertSourceSize(blob.size);
   if (!blobLooksLikeMedia(blob, response)) throw new Error("That link did not return audio or video.");
   return {
     blob,
@@ -398,6 +444,7 @@ function updateTimeAxis() {
 function updateMeta() {
   if (!state.audioBuffer) {
     els.metaName.textContent = "No source loaded";
+    els.metaName.removeAttribute("title");
     els.metaDuration.textContent = "--";
     els.metaRate.textContent = "--";
     els.metaChannels.textContent = "--";
@@ -406,10 +453,12 @@ function updateMeta() {
     els.sourceReady.hidden = true;
     if (els.transportDuration) els.transportDuration.textContent = "--";
     updatePreviewTimes();
+    updateWaveformAria();
     return;
   }
 
   els.metaName.textContent = state.sourceName;
+  els.metaName.title = state.sourceName;
   els.metaDuration.textContent = formatDuration(state.audioBuffer.duration);
   els.metaRate.textContent = `${state.audioBuffer.sampleRate.toLocaleString()} Hz`;
   els.metaChannels.textContent = formatChannels(state.audioBuffer.numberOfChannels);
@@ -417,6 +466,7 @@ function updateMeta() {
   els.metaSize.textContent = formatBytes(state.sourceSize);
   els.sourceReady.hidden = false;
   if (els.transportDuration) els.transportDuration.textContent = formatDuration(state.audioBuffer.duration);
+  updateWaveformAria();
 }
 
 function updatePreviewTimes(seconds = 0) {
@@ -435,6 +485,25 @@ function updateProgressDisplay(seconds = state.playheadSeconds) {
   });
   if (els.playheadTime) els.playheadTime.textContent = state.audioBuffer ? formatDuration(seconds) : "0:00";
   updatePreviewTimes(seconds);
+  updateWaveformAria();
+}
+
+function updateWaveformAria() {
+  if (!state.audioBuffer) {
+    els.canvas.setAttribute("aria-valuemax", "0");
+    els.canvas.setAttribute("aria-valuenow", "0");
+    els.canvas.setAttribute("aria-valuetext", "No audio loaded");
+    els.canvas.setAttribute("aria-disabled", "true");
+    return;
+  }
+
+  els.canvas.setAttribute("aria-valuemax", String(state.audioBuffer.duration));
+  els.canvas.setAttribute("aria-valuenow", String(state.playheadSeconds));
+  els.canvas.setAttribute(
+    "aria-valuetext",
+    `${formatPreviewTimestamp(state.playheadSeconds)} of ${formatPreviewTimestamp(state.audioBuffer.duration)}`,
+  );
+  els.canvas.setAttribute("aria-disabled", String(state.isLoading || state.isRendering));
 }
 
 function setPlayhead(seconds, redraw = true) {
@@ -580,19 +649,38 @@ function updatePlayButtons() {
 
 function updateControls() {
   const loaded = Boolean(state.audioBuffer);
+  const loading = state.isLoading;
   const rendering = state.isRendering;
+  const busy = loading || rendering;
   const selected = selectedBatchSemitones();
-  const canExport = loaded && selected.length > 0 && !rendering;
-  const canTransport = loaded && !rendering;
+  const canBatchExport = loaded && selected.length > 0 && !busy;
+  const canTransport = loaded && !busy;
   const trimEnabled = Boolean(els.trimToggle?.checked);
+  const semitoneLabel = `${formatSemitone(semitones())} st`;
+  const selectedLabel = `${selected.length} selected`;
 
-  els.previewOriginal.disabled = !loaded || rendering;
-  els.previewTransposed.disabled = !loaded || rendering;
+  els.workspace.setAttribute("aria-busy", String(busy));
+  els.form.setAttribute("aria-busy", String(loading));
+  els.dropZone.classList.toggle("is-loading", loading);
+  els.loadButton.classList.toggle("is-loading", loading);
+  els.loadButtonLabel.textContent = loading ? "Loading..." : "Load";
+  els.file.disabled = busy;
+  els.url.disabled = busy;
+  els.loadButton.disabled = busy;
+  els.replaceSource.disabled = busy;
+  els.sourceActions.hidden = !loaded;
+
+  els.previewOriginal.disabled = !canTransport;
+  els.previewTransposed.disabled = !canTransport;
   els.stopPreview.disabled = !state.isPlaying;
-  els.downloadOriginal.disabled = !loaded || !state.sourceBlob || rendering;
-  els.renderBatch.disabled = !canExport;
+  els.downloadOriginal.disabled = !loaded || !state.sourceBlob || busy;
+  els.renderCurrent.disabled = !loaded || busy;
+  els.mobileRenderCurrent.disabled = !loaded || busy;
+  els.renderBatch.disabled = !canBatchExport;
   els.cancelRender.hidden = !rendering;
-  els.clearExports.disabled = state.exports.length === 0 || rendering;
+  els.cancelRender.disabled = !rendering || state.cancelRender;
+  els.clearExports.disabled = state.exports.length === 0 || busy;
+  els.clearBatchSelection.disabled = selected.length === 0 || busy;
   els.skipBack.disabled = !canTransport;
   els.skipForward.disabled = !canTransport;
   els.zoomOut.disabled = !canTransport || state.zoomLevel <= 1;
@@ -601,12 +689,24 @@ function updateControls() {
   els.swapPreview.disabled = !canTransport;
   els.trimToggle.disabled = !canTransport;
   els.volume.disabled = !canTransport;
+  els.normalize.disabled = busy;
+  els.semitoneRange.disabled = busy;
+  els.semitoneNumber.disabled = busy;
+  els.stepDown.disabled = busy;
+  els.stepUp.disabled = busy;
+
+  document.querySelectorAll("[data-preset]").forEach((button) => {
+    button.disabled = busy;
+  });
+  els.batchGrid.querySelectorAll("input").forEach((input) => {
+    input.disabled = busy;
+  });
 
   [els.trimStart, els.trimEnd].forEach((control) => {
     control.disabled = !canTransport || !trimEnabled;
   });
   [els.loopEnabled, els.loopStart, els.loopEnd].forEach((control) => {
-    control.disabled = !loaded || rendering;
+    control.disabled = !loaded || busy;
   });
   [els.loopStart, els.loopEnd].forEach((control) => {
     control.disabled = !canTransport || !els.loopEnabled.checked;
@@ -615,11 +715,26 @@ function updateControls() {
   els.previewOriginal.title = loaded ? "Preview original audio" : "Upload audio first";
   els.previewTransposed.title = loaded ? "Preview selected transposition" : "Upload audio first";
   els.downloadOriginal.title = loaded ? "Download the source file" : "Upload audio first";
-  els.renderBatch.title = canExport
+  els.renderCurrent.title = loaded ? `Export the current ${semitoneLabel} setting as WAV` : "Upload audio first";
+  els.renderBatch.title = canBatchExport
     ? "Export selected semitone WAV files"
     : loaded
       ? "Select at least one batch semitone"
       : "Upload audio first";
+
+  els.currentExportLabel.textContent = `Export ${semitoneLabel} WAV`;
+  els.mobileCurrentExportLabel.textContent = `Export ${semitoneLabel}`;
+  els.batchExportLabel.textContent = rendering
+    ? "Rendering..."
+    : selected.length === 0
+      ? "Select versions"
+      : selected.length === 1
+      ? "Export 1 WAV"
+      : `Export ${selected.length} WAVs`;
+  els.mobileExportSummary.textContent = selectedLabel;
+  els.mobileSheetSummary.textContent = selectedLabel;
+  els.mobileActionBar.hidden = !loaded;
+  document.body.classList.toggle("has-mobile-actions", loaded);
 
   document.querySelectorAll("[data-play-mode]").forEach((button) => {
     button.disabled = !canTransport;
@@ -627,10 +742,11 @@ function updateControls() {
   document.querySelectorAll("[data-skip]").forEach((button) => {
     button.disabled = !canTransport;
   });
+  updateWaveformAria();
   updatePlayButtons();
 }
 
-function updateSemitone(value, checkBatch = true) {
+function updateSemitone(value) {
   const bounded = Math.max(-12, Math.min(12, Math.round(Number(value))));
   els.semitoneRange.value = String(bounded);
   els.semitoneNumber.value = String(bounded);
@@ -638,10 +754,6 @@ function updateSemitone(value, checkBatch = true) {
   document.querySelectorAll("[data-preset]").forEach((button) => {
     button.classList.toggle("is-active", Number(button.dataset.preset) === bounded);
   });
-  if (checkBatch) {
-    const checkbox = els.batchGrid.querySelector(`input[value="${bounded}"]`);
-    if (checkbox) checkbox.checked = true;
-  }
   stopPreview();
   updateEstimate();
 }
@@ -719,14 +831,31 @@ function updateRegionLabels() {
   els.loopEndLabel.textContent = formatPreciseTime(loop.end);
 }
 
+function estimatedRenderMemory(region, exportCount = 1) {
+  if (!state.audioBuffer || exportCount <= 0) return 0;
+  const sourceSamples =
+    state.audioBuffer.length * state.audioBuffer.numberOfChannels;
+  const regionSamples =
+    region.duration * state.audioBuffer.sampleRate * state.audioBuffer.numberOfChannels;
+  const sourceMemory = sourceSamples * 4;
+  const renderWorkingMemory = regionSamples * 22;
+  const retainedWavMemory = regionSamples * 2 * exportCount;
+  return sourceMemory + renderWorkingMemory + retainedWavMemory;
+}
+
+function renderMemoryLimit() {
+  return isMobileLayout() ? maxMobileRenderBytes : maxDesktopRenderBytes;
+}
+
 function updateEstimate() {
   const selected = selectedBatchSemitones();
-  const count = Math.max(1, selected.length);
+  const count = selected.length;
   els.estimateCount.textContent = `${count} ${count === 1 ? "file" : "files"}`;
 
   if (!state.audioBuffer) {
     els.estimateDuration.textContent = "--";
     els.estimateSize.textContent = "--";
+    els.estimateWarning.textContent = "";
     updateControls();
     return;
   }
@@ -734,7 +863,15 @@ function updateEstimate() {
   const trim = getTrimRegion();
   const bytes = trim.duration * state.audioBuffer.sampleRate * state.audioBuffer.numberOfChannels * 2 * count + 44 * count;
   els.estimateDuration.textContent = formatDuration(trim.duration);
-  els.estimateSize.textContent = formatBytes(bytes);
+  els.estimateSize.textContent = count ? formatBytes(bytes) : "--";
+
+  const workingMemory = estimatedRenderMemory(trim, count);
+  if (count && workingMemory > renderMemoryLimit()) {
+    els.estimateWarning.textContent =
+      "This batch is likely too large for a stable browser render. Trim the track or export fewer versions.";
+  } else {
+    els.estimateWarning.textContent = "";
+  }
   updateControls();
 }
 
@@ -862,12 +999,13 @@ function drawWaveform(playhead = null) {
   }
 }
 
-async function decodeBlob(blob, name, sourceUrl = "") {
+async function decodeBlob(blob, name, sourceUrl = "", loadId = state.loadToken) {
+  assertSourceSize(blob.size);
   stopPreview();
-  showToast("Decoding audio...");
   const context = getAudioContext();
   const arrayBuffer = await blob.arrayBuffer();
   const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
+  if (loadId !== state.loadToken) return false;
 
   state.audioBuffer = decoded;
   state.sourceBlob = blob;
@@ -910,53 +1048,86 @@ async function decodeBlob(blob, name, sourceUrl = "") {
       : "";
   showToast(`Audio loaded. Choose semitones, set trim if needed, then export WAV.${lengthNote}`, "success");
   trackEvent("file_loaded");
+  return true;
 }
 
 async function loadFile(file) {
   setUrlStatus();
-  if (!file) return;
+  if (!file || state.isLoading || state.isRendering) return;
   if (!file.type.startsWith("audio/") && !file.type.startsWith("video/") && file.type !== "") {
     showToast("Choose an audio file, or a video file with an audio track.", "error");
     trackEvent("file_load_error", { reason: "unsupported_type" });
+    els.file.value = "";
     return;
   }
 
+  let load;
   try {
-    await decodeBlob(file, file.name);
+    assertSourceSize(file.size);
+    load = beginSourceLoad("Decoding audio...");
+    await decodeBlob(file, file.name, "", load.id);
   } catch (error) {
-    console.error(error);
-    showToast("This browser could not decode that file. Try MP3, WAV, M4A, AAC, OGG, WebM, or MP4.", "error");
+    if (load?.id !== state.loadToken) return;
+    const message =
+      error.message?.includes("500 MB") || error.message?.includes("empty")
+        ? error.message
+        : "This browser could not decode that file. Try MP3, WAV, M4A, AAC, OGG, WebM, or MP4.";
+    showToast(message, "error");
     trackEvent("file_load_error", { reason: "decode_failed" });
+  } finally {
+    if (load) finishSourceLoad(load.id);
+    else els.file.value = "";
   }
 }
 
 async function loadUrl(value) {
+  if (state.isLoading || state.isRendering) return;
   if (!value) {
     setUrlStatus("Paste a direct audio or video file URL, or upload a file.", "error");
     return;
   }
 
   if (isYouTubeUrl(value)) {
-    setUrlStatus("YouTube links need the live-capture/extension workflow. This web app accepts uploads and direct audio/video file links.", "error");
+    setUrlStatus("YouTube watch pages are not direct media files. Use a direct .mp3, .m4a, .wav, .webm, or .mp4 file link.", "error");
     trackEvent("url_load_error", { reason: "youtube_watch_url" });
     return;
   }
 
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(value);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error();
+  } catch {
+    setUrlStatus("Enter a valid HTTP or HTTPS media file link.", "error");
+    return;
+  }
+
+  const load = beginSourceLoad("Loading media link...");
+  let usedProxy = false;
   try {
     setUrlStatus("Loading media link...");
     let media;
     try {
-      media = await fetchDirectMediaUrl(value);
+      media = await fetchDirectMediaUrl(parsedUrl.toString(), load.signal);
     } catch {
+      if (load.signal.aborted) return;
+      usedProxy = true;
       setUrlStatus("Loading media link through secure importer...");
-      media = await fetchProxiedMediaUrl(value);
+      media = await fetchProxiedMediaUrl(parsedUrl.toString(), load.signal);
     }
-    await decodeBlob(media.blob, media.name, value);
-    setUrlStatus();
+    const loaded = await decodeBlob(media.blob, media.name, parsedUrl.toString(), load.id);
+    if (loaded) {
+      setUrlStatus(
+        usedProxy ? "Imported through the secure relay. Audio processing now happens in this browser." : "",
+        usedProxy ? "success" : "",
+      );
+    }
   } catch (error) {
-    console.error(error);
+    if (load.signal.aborted || load.id !== state.loadToken) return;
     setUrlStatus(error.message || "That link could not be loaded as an audio/video file.", "error");
     trackEvent("url_load_error", { reason: "fetch_or_decode_failed" });
+  } finally {
+    finishSourceLoad(load.id);
   }
 }
 
@@ -1124,19 +1295,6 @@ function renderedToAudioBuffer(rendered) {
   return output;
 }
 
-function resampleLinear(input, ratio) {
-  const outputLength = Math.max(1, Math.round(input.length / ratio));
-  const output = new Float32Array(outputLength);
-  for (let i = 0; i < outputLength; i += 1) {
-    const sourceIndex = i * ratio;
-    const left = Math.floor(sourceIndex);
-    const right = Math.min(input.length - 1, left + 1);
-    const fraction = sourceIndex - left;
-    output[i] = input[left] * (1 - fraction) + input[right] * fraction;
-  }
-  return output;
-}
-
 function hann(index, length) {
   return 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / Math.max(1, length - 1));
 }
@@ -1224,84 +1382,29 @@ async function pitchShiftRegion(buffer, semitoneValue, region, options) {
   };
 }
 
-function normalizeChannels(channels) {
-  let peak = 0;
-  channels.forEach((channel) => {
-    for (let i = 0; i < channel.length; i += 1) {
-      peak = Math.max(peak, Math.abs(channel[i]));
-    }
-  });
-  if (peak < 0.000001) return;
-  const target = Math.pow(10, -0.5 / 20);
-  const gain = target / peak;
-  channels.forEach((channel) => {
-    for (let i = 0; i < channel.length; i += 1) {
-      channel[i] = Math.max(-1, Math.min(1, channel[i] * gain));
-    }
-  });
-}
-
-function floatTo16Bit(value) {
-  const sample = Math.max(-1, Math.min(1, value));
-  return sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-}
-
-function writeString(view, offset, string) {
-  for (let i = 0; i < string.length; i += 1) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-}
-
-function encodeWav(rendered) {
-  const bytesPerSample = 2;
-  const blockAlign = rendered.numberOfChannels * bytesPerSample;
-  const dataSize = rendered.length * blockAlign;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(view, 8, "WAVE");
-  writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, rendered.numberOfChannels, true);
-  view.setUint32(24, rendered.sampleRate, true);
-  view.setUint32(28, rendered.sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);
-  writeString(view, 36, "data");
-  view.setUint32(40, dataSize, true);
-
-  let offset = 44;
-  for (let i = 0; i < rendered.length; i += 1) {
-    for (let channelIndex = 0; channelIndex < rendered.numberOfChannels; channelIndex += 1) {
-      view.setInt16(offset, floatTo16Bit(rendered.channels[channelIndex][i]), true);
-      offset += bytesPerSample;
-    }
-  }
-
-  return new Blob([view], { type: "audio/wav" });
-}
-
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
+  triggerDownloadUrl(url, filename);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function triggerDownloadUrl(url, filename) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
   document.body.append(link);
   link.click();
   link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function downloadOriginal() {
   if (!state.sourceBlob) return;
   downloadBlob(state.sourceBlob, state.sourceName || "original-audio");
+  showToast("Original file download started.", "success");
 }
 
-function queueEntry(semitoneValue) {
-  const entry = {
+function createQueueEntry(semitoneValue) {
+  return {
     id: crypto.randomUUID(),
     semitones: semitoneValue,
     fileName: fileNameFor(semitoneValue),
@@ -1310,28 +1413,51 @@ function queueEntry(semitoneValue) {
     url: "",
     size: 0,
     duration: 0,
+    lastUiProgress: 0,
   };
-  state.exports.unshift(entry);
-  renderExportList();
-  return entry;
 }
 
-async function renderBatch() {
+function replaceExistingExports(semitoneValues) {
+  const values = new Set(semitoneValues);
+  state.exports = state.exports.filter((entry) => {
+    if (!values.has(entry.semitones)) return true;
+    if (entry.url) URL.revokeObjectURL(entry.url);
+    return false;
+  });
+}
+
+async function renderVersions(semitoneValues, { autoDownload = false, revealQueue = false } = {}) {
   if (!state.audioBuffer || state.isRendering) return;
-  const selected = selectedBatchSemitones();
+  const selected = [...new Set(semitoneValues.map(Number))]
+    .filter((value) => Number.isFinite(value) && value >= -12 && value <= 12)
+    .sort((a, b) => a - b);
   if (!selected.length) {
     showToast("Select at least one semitone for batch export.", "error");
+    return;
+  }
+
+  const region = getTrimRegion();
+  if (estimatedRenderMemory(region, selected.length) > renderMemoryLimit()) {
+    showToast(
+      "This render is too large for a stable browser export. Trim the track or export fewer versions.",
+      "error",
+    );
+    if (isMobileLayout()) setMobileSheet(true);
     return;
   }
 
   stopPreview();
   state.isRendering = true;
   state.cancelRender = false;
+  const normalize = els.normalize.checked;
+  replaceExistingExports(selected);
+  const entries = selected.map(createQueueEntry);
+  state.exports.unshift(...entries);
+  renderExportList();
   updateControls();
   trackEvent("render_started");
 
-  const region = getTrimRegion();
-  const entries = selected.map(queueEntry);
+  if (revealQueue && isMobileLayout()) setMobileSheet(true);
   showToast(`Rendering ${entries.length} WAV ${entries.length === 1 ? "file" : "files"}...`);
 
   try {
@@ -1342,11 +1468,14 @@ async function renderBatch() {
       renderExportList();
 
       const rendered = await pitchShiftRegion(state.audioBuffer, entry.semitones, region, {
-        normalize: els.normalize.checked,
+        normalize,
         quality: "export",
         onProgress: (value) => {
           entry.progress = Math.max(entry.progress, value);
-          renderExportList();
+          if (entry.progress - entry.lastUiProgress >= 0.02 || entry.progress >= 1) {
+            entry.lastUiProgress = entry.progress;
+            renderExportList();
+          }
         },
         shouldCancel: () => state.cancelRender,
       });
@@ -1361,7 +1490,12 @@ async function renderBatch() {
       await yieldToUI();
     }
 
-    showToast("Batch export complete. Re-download files from the queue any time during this session.", "success");
+    if (autoDownload && entries.length === 1) {
+      triggerDownloadUrl(entries[0].url, entries[0].fileName);
+      showToast("Export ready. The download has started and remains available in the queue.", "success");
+    } else {
+      showToast("Batch export complete. Download files from the queue during this session.", "success");
+    }
     trackEvent("render_complete");
   } catch (error) {
     const cancelled = String(error.message || "").includes("cancelled");
@@ -1378,6 +1512,14 @@ async function renderBatch() {
     state.cancelRender = false;
     updateControls();
   }
+}
+
+function renderCurrent() {
+  return renderVersions([semitones()], { autoDownload: true, revealQueue: true });
+}
+
+function renderBatch() {
+  return renderVersions(selectedBatchSemitones(), { revealQueue: true });
 }
 
 function renderExportList() {
@@ -1401,7 +1543,11 @@ function renderExportList() {
           ? `${formatDuration(entry.duration)} · ${formatBytes(entry.size)}`
           : entry.status === "rendering"
             ? `${Math.round(entry.progress * 100)}% rendered`
-            : entry.status;
+            : entry.status === "queued"
+              ? "Queued"
+              : entry.status === "cancelled"
+                ? "Cancelled"
+                : "Failed";
       item.innerHTML = `
         <header>
           <div>
@@ -1419,6 +1565,15 @@ function renderExportList() {
         link.download = entry.fileName;
         link.textContent = "Download WAV";
         item.append(link);
+      } else if (entry.status === "failed" || entry.status === "cancelled") {
+        const retry = document.createElement("button");
+        retry.className = "queue-retry";
+        retry.type = "button";
+        retry.textContent = "Retry";
+        retry.addEventListener("click", () =>
+          renderVersions([entry.semitones], { autoDownload: false, revealQueue: true }),
+        );
+        item.append(retry);
       }
 
       return item;
@@ -1517,6 +1672,28 @@ function attachWaveformPointerEvents() {
       state.dragHandle = "";
     });
   });
+
+  els.canvas.addEventListener("keydown", (event) => {
+    if (!state.audioBuffer || state.isLoading || state.isRendering) return;
+    const region = getPreviewRegion();
+    let nextTime = state.playheadSeconds;
+    const step = event.shiftKey ? 10 : 1;
+
+    if (event.key === "ArrowLeft") nextTime -= step;
+    else if (event.key === "ArrowRight") nextTime += step;
+    else if (event.key === "Home") nextTime = region.start;
+    else if (event.key === "End") nextTime = region.end;
+    else if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      playMode(state.activeMode || "original");
+      return;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    stopPreviewAt(clampTime(nextTime, region));
+  });
 }
 
 function attachEvents() {
@@ -1530,6 +1707,9 @@ function attachEvents() {
 
   els.file.addEventListener("change", () => {
     loadFile(els.file.files?.[0]);
+  });
+  els.replaceSource.addEventListener("click", () => {
+    if (!els.file.disabled) els.file.click();
   });
 
   ["dragenter", "dragover"].forEach((eventName) => {
@@ -1578,6 +1758,12 @@ function attachEvents() {
 
   els.normalize.addEventListener("change", updateEstimate);
   els.batchGrid.addEventListener("change", updateEstimate);
+  els.clearBatchSelection.addEventListener("click", () => {
+    els.batchGrid.querySelectorAll("input").forEach((input) => {
+      input.checked = false;
+    });
+    updateEstimate();
+  });
   document.querySelectorAll("[data-play-mode]").forEach((button) => {
     button.addEventListener("click", () => playMode(button.dataset.playMode));
   });
@@ -1596,16 +1782,44 @@ function attachEvents() {
     if (state.activeGain) state.activeGain.gain.value = state.volume;
   });
   els.downloadOriginal.addEventListener("click", downloadOriginal);
+  els.renderCurrent.addEventListener("click", renderCurrent);
+  els.mobileRenderCurrent.addEventListener("click", renderCurrent);
   els.renderBatch.addEventListener("click", renderBatch);
   els.cancelRender.addEventListener("click", () => {
     state.cancelRender = true;
     showToast("Cancelling after the current render step...");
+    updateControls();
   });
   els.clearExports.addEventListener("click", clearExports);
+  els.openExportPanel.addEventListener("click", () => setMobileSheet(true));
+  els.closeExportPanel.addEventListener("click", () => setMobileSheet(false, true));
+  els.mobileExportBackdrop.addEventListener("click", () => setMobileSheet(false, true));
   attachWaveformPointerEvents();
   window.addEventListener("resize", () => {
+    setMobileSheet(state.mobileSheetOpen);
     updateTimeAxis();
+    updateEstimate();
     drawWaveform(state.playheadSeconds);
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.mobileSheetOpen) {
+      event.preventDefault();
+      setMobileSheet(false, true);
+    }
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (!state.isRendering) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {
+      // Offline support is optional; the editor remains fully usable online.
+    });
   });
 }
 
@@ -1619,14 +1833,16 @@ function init() {
   }
 
   attachEvents();
-  updateSemitone(0, false);
+  updateSemitone(0);
   updateMeta();
   updatePreviewTimes();
   updateRegionLabels();
   updateEstimate();
   drawWaveform();
-  setMessage("Drop audio here to transpose. Audio stays in your browser.", "success");
+  setMobileSheet(false);
+  setMessage("Choose a file or direct media link to begin.", "success");
   trackEvent("page_view");
+  registerServiceWorker();
 }
 
 init();

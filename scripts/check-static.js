@@ -14,12 +14,26 @@ const requiredHtml = [
   'id="original-progress"',
   'id="transposed-progress"',
   'id="swap-preview"',
-  'id="volume"',
-  'rel="manifest"',
-];
+    'id="volume"',
+    'id="download-original"',
+    'id="render-current"',
+    'id="mobile-action-bar"',
+    'id="export-panel"',
+    'rel="manifest"',
+  ];
 
 const forbiddenHtml = ["01:28.450", "<span>Stereo</span>", "4:30</span>", "data-proxy", "#settings-panel", "Pro features"];
-const requiredApp = ["updateTimeAxis", "formatChannels", "attachWaveformPointerEvents", "zoomWaveform", "switchPreviewMode"];
+const requiredApp = [
+  "updateTimeAxis",
+  "attachWaveformPointerEvents",
+  "zoomWaveform",
+  "switchPreviewMode",
+  "renderCurrent",
+  "renderVersions",
+  "beginSourceLoad",
+  "setMobileSheet",
+  "registerServiceWorker",
+];
 
 function assert(condition, message) {
   if (!condition) {
@@ -34,6 +48,8 @@ requiredApp.forEach((needle) => assert(app.includes(needle), `Missing expected a
 
 assert(manifest.name === "Audio Transposer", "Manifest name mismatch");
 assert(Array.isArray(manifest.icons) && manifest.icons.length > 0, "Manifest must include an icon");
+assert(app.includes("audio-utils.mjs"), "App must load the tested audio utility module");
+assert(fs.existsSync(path.join(root, "public/sw.js")), "Service worker is missing");
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log("Static checks passed");

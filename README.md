@@ -12,11 +12,13 @@ Live app: https://audio-transposer.pages.dev
 - Preview original vs transposed audio.
 - Seek, skip by 10 seconds, switch A/B preview, zoom/Fit the waveform, and adjust preview volume.
 - Choose semitone changes from `-12` to `+12`.
+- Export the current pitch in one action or download the original source unchanged.
 - Export multiple semitone versions as WAV files.
 - Trim the export region and loop a preview region with visible range controls and waveform handles.
 - Normalize exported audio.
 - Re-download completed exports during the same browser session.
-- Install as a standalone PWA from supported browsers.
+- Use a mobile export action bar and bottom sheet without scrolling past the full editor.
+- Install as a standalone PWA with an offline-cached app shell in supported browsers.
 
 Uploaded files are decoded and rendered locally in the browser. Pasted media links may be fetched through the included Cloudflare Pages Function so the browser can decode them.
 
@@ -54,10 +56,10 @@ python3 -m http.server 8788
 ## Verify
 
 ```bash
-npm run check
+npm test
 ```
 
-The check script runs JavaScript syntax checks for the browser app and Cloudflare Pages Function, then validates that key static UI/PWA hooks are present and stale placeholder UI is absent.
+The test command runs JavaScript syntax and static UI/PWA checks plus dependency-free unit tests for semitone ratios, metadata formatting, normalization, export filenames, and WAV encoding.
 
 ## Deploy
 
